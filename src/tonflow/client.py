@@ -24,6 +24,4 @@ class TonClient:
         if limit <= 0:
             msg = "limit must be greater than zero."
             raise ValueError(msg)
-        raise NotImplementedError(
-            f"Transaction fetching is not implemented yet for {normalized}."
-        )
+        raise NotImplementedError(f"Transaction fetching is not implemented yet for {normalized}.")
