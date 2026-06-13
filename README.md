@@ -21,6 +21,27 @@ Python toolkit for reading, decoding, normalizing, and locally caching TON block
 
 Pre-alpha. The package scaffold is in place; network adapters and real Jetton decoding are planned next.
 
+## Quickstart
+
+```python
+import asyncio
+
+from tonflow import TonClient
+
+
+async def main() -> None:
+    async with TonClient(endpoint="https://tonapi.io") as client:
+        transactions = await client.get_transactions(
+            "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            limit=10,
+        )
+        for transaction in transactions:
+            print(transaction.hash, transaction.logical_time, transaction.status)
+
+
+asyncio.run(main())
+```
+
 ## Local development
 
 ```powershell
