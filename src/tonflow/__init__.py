@@ -20,6 +20,7 @@ from tonflow.models import (
     Transaction,
     TransactionStatus,
 )
+from tonflow.stream import watch_address
 
 __all__ = [
     "InMemoryCache",
@@ -39,6 +40,7 @@ __all__ = [
     "is_jetton_transfer",
     "is_jetton_transfer_notification",
     "normalize_amount",
+    "watch_address",
     "is_user_friendly_address",
     "normalize_address",
 ]
