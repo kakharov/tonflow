@@ -1,6 +1,11 @@
 """TON blockchain parsing and local indexing toolkit."""
 
-from tonflow.addresses import is_user_friendly_address, normalize_address
+from tonflow.addresses import (
+    is_raw_address,
+    is_user_friendly_address,
+    normalize_address,
+    validate_address,
+)
 from tonflow.cache import InMemoryCache, JSONCache, SQLiteCache
 from tonflow.client import TonClient
 from tonflow.jettons import (
@@ -41,6 +46,8 @@ __all__ = [
     "is_jetton_transfer_notification",
     "normalize_amount",
     "watch_address",
+    "is_raw_address",
     "is_user_friendly_address",
     "normalize_address",
+    "validate_address",
 ]
