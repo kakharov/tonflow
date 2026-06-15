@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from tonflow import MessageDirection, TonClient, TransactionStatus
+from tonflow import InMemoryCache, MessageDirection, TonClient, TransactionStatus
 from tonflow.exceptions import TonflowAPIError, TonflowDecodeError
 
 
@@ -94,4 +94,43 @@ async def test_get_transactions_raises_decode_error_for_invalid_payload() -> Non
     with pytest.raises(TonflowDecodeError, match="must be a list"):
         await client.get_transactions("EQ" + "A" * 46)
 
+    await http_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_get_transactions_uses_cache_for_repeated_reads() -> None:
+    request_count = 0
+
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        return httpx.Response(
+            200,
+            json={
+                "transactions": [
+                    {
+                        "hash": "cached-tx",
+                        "lt": 1,
+                    }
+                ]
+            },
+        )
+
+    http_client = httpx.AsyncClient(
+        base_url="https://tonapi.example",
+        transport=httpx.MockTransport(handler),
+    )
+    client = TonClient(
+        endpoint="https://tonapi.example",
+        http_client=http_client,
+        cache=InMemoryCache(),
+        cache_ttl_seconds=30,
+    )
+
+    first = await client.get_transactions("EQ" + "A" * 46, limit=1)
+    second = await client.get_transactions("EQ" + "A" * 46, limit=1)
+
+    assert first[0].hash == "cached-tx"
+    assert second[0].hash == "cached-tx"
+    assert request_count == 1
     await http_client.aclose()

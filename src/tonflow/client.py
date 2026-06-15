@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 
 from tonflow.addresses import normalize_address
+from tonflow.cache import JSONCache
 from tonflow.exceptions import TonflowAPIError, TonflowDecodeError
 from tonflow.models import Message, MessageDirection, RawPayload, Transaction, TransactionStatus
 
@@ -20,6 +22,8 @@ class TonClient:
     api_key: str | None = None
     timeout: float = 10.0
     http_client: httpx.AsyncClient | None = None
+    cache: JSONCache | None = None
+    cache_ttl_seconds: float | None = 30.0
     _owns_http_client: bool = field(default=False, init=False, repr=False)
 
     async def __aenter__(self) -> TonClient:
@@ -68,8 +72,14 @@ class TonClient:
         *,
         params: dict[str, int | None] | None = None,
     ) -> RawPayload:
-        client = self._get_http_client()
         clean_params = {key: value for key, value in (params or {}).items() if value is not None}
+        cache_key = _cache_key(method, path, clean_params)
+        if self.cache is not None and method.upper() == "GET":
+            cached = self.cache.get(cache_key)
+            if cached is not None:
+                return cached
+
+        client = self._get_http_client()
 
         try:
             response = await client.request(method, path, params=clean_params)
@@ -90,6 +100,9 @@ class TonClient:
 
         if not isinstance(data, dict):
             raise TonflowDecodeError("TON API response must be a JSON object.")
+
+        if self.cache is not None and method.upper() == "GET":
+            self.cache.set(cache_key, data, ttl_seconds=self.cache_ttl_seconds)
         return data
 
     def _get_http_client(self) -> httpx.AsyncClient:
@@ -107,6 +120,13 @@ class TonClient:
         )
         self._owns_http_client = True
         return self.http_client
+
+
+def _cache_key(method: str, path: str, params: dict[str, int]) -> str:
+    query = urlencode(sorted(params.items()))
+    if query:
+        return f"{method.upper()} {path}?{query}"
+    return f"{method.upper()} {path}"
 
 
 def _extract_transactions(payload: RawPayload) -> list[RawPayload]:
