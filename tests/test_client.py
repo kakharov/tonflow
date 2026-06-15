@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 import httpx
 import pytest
 
 from tonflow import InMemoryCache, MessageDirection, TonClient, TransactionStatus
 from tonflow.exceptions import TonflowAPIError, TonflowDecodeError
+from tonflow.jettons import OP_JETTON_TRANSFER, OP_JETTON_TRANSFER_NOTIFICATION
 
 
 @pytest.mark.asyncio
@@ -94,6 +97,118 @@ async def test_get_transactions_raises_decode_error_for_invalid_payload() -> Non
     with pytest.raises(TonflowDecodeError, match="must be a list"):
         await client.get_transactions("EQ" + "A" * 46)
 
+    await http_client.aclose()
+
+
+# ---------------------------------------------------------------------------
+# get_jetton_transfers
+# ---------------------------------------------------------------------------
+
+SENDER = "EQ" + "S" * 46
+WALLET = "EQ" + "W" * 46
+
+
+def _jetton_tx_payload(amount: int = 1_000_000_000, op_code: int = OP_JETTON_TRANSFER) -> dict:
+    return {
+        "transactions": [
+            {
+                "hash": "jetton-tx-hash",
+                "lt": "500",
+                "now": 1_700_000_000,
+                "success": True,
+                "in_msg": {
+                    "source": SENDER,
+                    "destination": WALLET,
+                    "value": str(amount),
+                    "op_code": op_code,
+                    "amount": str(amount),
+                },
+                "out_msgs": [],
+            }
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_jetton_transfers_returns_decoded_transfers() -> None:
+    http_client = httpx.AsyncClient(
+        base_url="https://tonapi.example",
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(200, json=_jetton_tx_payload(2_000_000_000))
+        ),
+    )
+    client = TonClient(endpoint="https://tonapi.example", http_client=http_client)
+
+    transfers = await client.get_jetton_transfers(WALLET, decimals=9, symbol="USDT")
+
+    assert len(transfers) == 1
+    assert transfers[0].transaction_hash == "jetton-tx-hash"
+    assert transfers[0].amount == Decimal("2")
+    assert transfers[0].symbol == "USDT"
+    assert transfers[0].sender == SENDER
+    await http_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_get_jetton_transfers_skips_non_jetton_transactions() -> None:
+    payload = {
+        "transactions": [
+            {
+                "hash": "plain-tx",
+                "lt": "10",
+                "in_msg": {
+                    "source": SENDER,
+                    "destination": WALLET,
+                    "value": "1000",
+                    "op_code": 0x0,
+                },
+                "out_msgs": [],
+            }
+        ]
+    }
+    http_client = httpx.AsyncClient(
+        base_url="https://tonapi.example",
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload)),
+    )
+    client = TonClient(endpoint="https://tonapi.example", http_client=http_client)
+
+    transfers = await client.get_jetton_transfers(WALLET)
+
+    assert transfers == []
+    await http_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_get_jetton_transfers_handles_notification_op() -> None:
+    http_client = httpx.AsyncClient(
+        base_url="https://tonapi.example",
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                200, json=_jetton_tx_payload(500_000_000, op_code=OP_JETTON_TRANSFER_NOTIFICATION)
+            )
+        ),
+    )
+    client = TonClient(endpoint="https://tonapi.example", http_client=http_client)
+
+    transfers = await client.get_jetton_transfers(WALLET, decimals=9)
+
+    assert len(transfers) == 1
+    assert transfers[0].amount == Decimal("0.5")
+    await http_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_get_jetton_transfers_attaches_minter() -> None:
+    MINTER = "EQ" + "M" * 46
+    http_client = httpx.AsyncClient(
+        base_url="https://tonapi.example",
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=_jetton_tx_payload())),
+    )
+    client = TonClient(endpoint="https://tonapi.example", http_client=http_client)
+
+    transfers = await client.get_jetton_transfers(WALLET, jetton_minter=MINTER)
+
+    assert transfers[0].jetton_minter == MINTER
     await http_client.aclose()
 
 
