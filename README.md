@@ -42,6 +42,18 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+## Local cache
+
+```python
+from tonflow import SQLiteCache, TonClient
+
+client = TonClient(
+    endpoint="https://tonapi.io",
+    cache=SQLiteCache(".tonflow/cache.sqlite3"),
+    cache_ttl_seconds=30,
+)
+```
+
 ## Local development
 
 ```powershell
