@@ -11,7 +11,15 @@ import httpx
 from tonflow.addresses import normalize_address
 from tonflow.cache import JSONCache
 from tonflow.exceptions import TonflowAPIError, TonflowDecodeError
-from tonflow.models import Message, MessageDirection, RawPayload, Transaction, TransactionStatus
+from tonflow.jettons import decode_jetton_transfer
+from tonflow.models import (
+    JettonTransfer,
+    Message,
+    MessageDirection,
+    RawPayload,
+    Transaction,
+    TransactionStatus,
+)
 
 
 @dataclass(slots=True)
@@ -64,6 +72,56 @@ class TonClient:
         )
         transactions = _extract_transactions(payload)
         return [_parse_transaction(item, account=normalized) for item in transactions]
+
+    async def get_jetton_transfers(
+        self,
+        address: str,
+        *,
+        limit: int = 20,
+        before_lt: int | None = None,
+        decimals: int = 9,
+        jetton_minter: str | None = None,
+        symbol: str | None = None,
+    ) -> list[JettonTransfer]:
+        """Fetch transactions for *address* and return only Jetton transfer events.
+
+        Internally calls :meth:`get_transactions` and filters messages whose
+        op_code matches a TEP-74 Jetton transfer or transfer_notification.
+
+        Args:
+            address: TON account address to query.
+            limit: Maximum number of transactions to scan (not transfers).
+            before_lt: Return transactions with logical time below this value.
+            decimals: Token decimal places used for amount normalization.
+            jetton_minter: Optional minter contract address to attach to results.
+            symbol: Optional token symbol to attach to results.
+
+        Returns:
+            List of :class:`~tonflow.models.JettonTransfer` in the order they
+            appear across the fetched transactions (newest transaction first,
+            matching the API order).
+        """
+        transactions = await self.get_transactions(address, limit=limit, before_lt=before_lt)
+
+        transfers: list[JettonTransfer] = []
+        for tx in transactions:
+            messages: list[Message] = []
+            if tx.in_message is not None:
+                messages.append(tx.in_message)
+            messages.extend(tx.out_messages)
+
+            for msg in messages:
+                result = decode_jetton_transfer(
+                    tx,
+                    msg,
+                    decimals=decimals,
+                    jetton_minter=jetton_minter,
+                    symbol=symbol,
+                )
+                if result is not None:
+                    transfers.append(result)
+
+        return transfers
 
     async def _request_json(
         self,
