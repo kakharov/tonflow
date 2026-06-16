@@ -51,6 +51,20 @@ async for tx in watch_address(client, "EQ...", interval_seconds=5):
     print("new tx:", tx.hash, tx.logical_time)
 ```
 
+`watch_address` runs indefinitely. To stop it after a fixed duration, wrap it
+with `asyncio.timeout` (Python 3.11+):
+
+```python
+import asyncio
+from tonflow import TonClient, watch_address
+
+async def main() -> None:
+    async with TonClient(endpoint="https://tonapi.io") as client:
+        async with asyncio.timeout(60):  # stop after 60 seconds
+            async for tx in watch_address(client, "EQ..."):
+                print(tx.hash)
+```
+
 ### Cache responses locally (avoid hammering public nodes)
 
 ```python
@@ -119,6 +133,8 @@ watch_address(
 ```
 
 Polls every `interval_seconds`. Seeds a baseline on the first call so existing transactions are not replayed. Yields new transactions in ascending logical-time order.
+
+> **Note:** `watch_address` runs indefinitely. Use `asyncio.timeout()` or task cancellation to stop it.
 
 ### Models
 
