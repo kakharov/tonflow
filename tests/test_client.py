@@ -249,3 +249,31 @@ async def test_get_transactions_uses_cache_for_repeated_reads() -> None:
     assert second[0].hash == "cached-tx"
     assert request_count == 1
     await http_client.aclose()
+
+@pytest.mark.asyncio
+async def test_get_transactions_handles_float_fees() -> None:
+    """TonAPI sometimes returns integer fields as floats like 1234.0."""
+    http_client = httpx.AsyncClient(
+        base_url="https://tonapi.example",
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                200,
+                json={
+                    "transactions": [
+                        {
+                            "hash": "float-tx",
+                            "lt": 999,
+                            "total_fees": 1234.0,  # float from API
+                            "now": 1700000000.0,   # float timestamp
+                        }
+                    ]
+                },
+            )
+        ),
+    )
+    client = TonClient(endpoint="https://tonapi.example", http_client=http_client)
+
+    txs = await client.get_transactions("EQ" + "A" * 46)
+    assert txs[0].total_fees == 1234
+    assert txs[0].timestamp == 1700000000
+    await http_client.aclose()
