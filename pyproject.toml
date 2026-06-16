@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [
-  { name = "kakharov" }
+  { name = "kakharov", email = "kaharov95@gmail.com" }
 ]
 keywords = ["ton", "blockchain", "jetton", "indexing", "web3"]
 classifiers = [

@@ -1,5 +1,10 @@
 # tonflow
 
+[![CI](https://github.com/kakharov/tonflow/actions/workflows/ci.yml/badge.svg)](https://github.com/kakharov/tonflow/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/tonflow)](https://pypi.org/project/tonflow/)
+[![Python](https://img.shields.io/pypi/pyversions/tonflow)](https://pypi.org/project/tonflow/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Python toolkit for reading, decoding, normalizing, and locally caching TON blockchain data.
 
 `tonflow` is a lightweight MIT-licensed library. It does not run a hosted indexer and does not store blockchain data on your behalf — any cache lives on your own machine or infrastructure.
