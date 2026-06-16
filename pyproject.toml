@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["ton", "blockchain", "jetton", "indexing", "web3"]
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
+  "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
@@ -46,6 +46,7 @@ packages = ["src/tonflow"]
 addopts = "-q"
 testpaths = ["tests"]
 pythonpath = ["src"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100
