@@ -23,6 +23,22 @@ async def watch_address(
     a baseline; subsequent polls only yield transactions with a logical time
     greater than the highest seen so far, so duplicates are never emitted.
 
+    ``watch_address`` runs indefinitely. To stop it after a fixed duration or
+    on an external signal, wrap it with :func:`asyncio.timeout` or cancel the
+    enclosing task:
+
+    .. code-block:: python
+
+        import asyncio
+        from tonflow import TonClient, watch_address
+
+        async def main() -> None:
+            async with TonClient(endpoint="https://tonapi.io") as client:
+                # Stop automatically after 60 seconds
+                async with asyncio.timeout(60):
+                    async for tx in watch_address(client, "EQ..."):
+                        print(tx.hash)
+
     Args:
         client: A configured :class:`TonClient` instance.
         address: The TON address to watch.
