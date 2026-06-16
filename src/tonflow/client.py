@@ -312,6 +312,8 @@ def _optional_int(raw: RawPayload, key: str, *, fallback_keys: tuple[str, ...] =
         return None
     if isinstance(value, int):
         return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
     if isinstance(value, str) and value.isdecimal():
         return int(value)
     raise TonflowDecodeError(f"TON API field '{key}' must be an integer.")
