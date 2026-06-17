@@ -250,6 +250,7 @@ async def test_get_transactions_uses_cache_for_repeated_reads() -> None:
     assert request_count == 1
     await http_client.aclose()
 
+
 @pytest.mark.asyncio
 async def test_get_transactions_handles_float_fees() -> None:
     """TonAPI sometimes returns integer fields as floats like 1234.0."""
@@ -264,7 +265,7 @@ async def test_get_transactions_handles_float_fees() -> None:
                             "hash": "float-tx",
                             "lt": 999,
                             "total_fees": 1234.0,  # float from API
-                            "now": 1700000000.0,   # float timestamp
+                            "now": 1700000000.0,  # float timestamp
                         }
                     ]
                 },
