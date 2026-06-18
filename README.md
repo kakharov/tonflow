@@ -226,13 +226,53 @@ mypy src/
 - [x] JSON and CSV export helpers
 
 ### `0.2.0` — planned
-- [ ] Websocket stream support (TonAPI / Toncenter)
+
+**TonCenter adapter**
+
+TON ecosystem has multiple API providers with different trade-offs:
+
+| Provider | Cost | Reliability | Notes |
+|---|---|---|---|
+| TonAPI | Paid | High | More endpoints, better rate limits |
+| TonCenter | Free | Medium | Can drop transactions under load |
+| Lite Server | Free | Highest | Direct node connection, complex setup |
+
+`0.2.0` adds a pluggable provider system so you can switch between TonAPI and TonCenter without changing your code.
+
+**`send_and_confirm()`**
+
+TON is fully asynchronous — sending a transaction does not mean it was executed. Unlike Ethereum, there is no immediate transaction hash to track. Transactions can silently disappear from the mempool due to:
+
+- `valid_until` TTL expiry (transaction not included in a block in time)
+- TonCenter queue drops under high load
+- `seqno` race conditions when sending in parallel
+
+`send_and_confirm()` solves this by:
+
+1. Sending the transaction via any configured provider
+2. Polling every few seconds until the transaction appears on-chain
+3. Automatically retrying with a fresh `seqno` if `valid_until` has passed and the transaction is gone
+4. Returning only after the transaction is confirmed in a block
+
+```python
+result = await client.send_and_confirm(
+    wallet=wallet,
+    messages=[...],
+    timeout=60,
+)
+print(result.hash, result.logical_time)
+```
+
+**Full `0.2.0` scope**
+
+- [ ] TonCenter adapter (pluggable provider interface)
+- [ ] `send_and_confirm()` with polling, TTL tracking and automatic retry
+- [ ] Websocket stream support (TonAPI / TonCenter)
 - [ ] Jetton burn and mint event decoding
-- [ ] NFT transfer event decoding
 - [ ] Redis cache adapter
-- [ ] Toncenter API adapter (alternative to TonAPI)
 
 ### `0.3.0` — planned
+- [ ] NFT transfer event decoding
 - [ ] CLI: `tonflow scan <address>`
 - [ ] Postgres export helper
 - [ ] Backfill utility for historical data
