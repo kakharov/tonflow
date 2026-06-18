@@ -1,6 +1,7 @@
 # tonflow
 
 [![CI](https://github.com/kakharov/tonflow/actions/workflows/ci.yml/badge.svg)](https://github.com/kakharov/tonflow/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/kakharov/tonflow/branch/main/graph/badge.svg)](https://codecov.io/gh/kakharov/tonflow)
 [![PyPI](https://img.shields.io/pypi/v/tonflow)](https://pypi.org/project/tonflow/)
 [![Python](https://img.shields.io/pypi/pyversions/tonflow)](https://pypi.org/project/tonflow/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -213,6 +214,28 @@ ruff check .
 ruff format .
 mypy src/
 ```
+
+## Roadmap
+
+### `0.1.0` — current
+- [x] `TonClient` with `get_transactions()` and `get_jetton_transfers()`
+- [x] TEP-74 Jetton transfer decoder
+- [x] `SQLiteCache` and `InMemoryCache` with TTL
+- [x] `watch_address()` polling stream
+- [x] Address validation (user-friendly and raw formats)
+- [x] JSON and CSV export helpers
+
+### `0.2.0` — planned
+- [ ] Websocket stream support (TonAPI / Toncenter)
+- [ ] Jetton burn and mint event decoding
+- [ ] NFT transfer event decoding
+- [ ] Redis cache adapter
+- [ ] Toncenter API adapter (alternative to TonAPI)
+
+### `0.3.0` — planned
+- [ ] CLI: `tonflow scan <address>`
+- [ ] Postgres export helper
+- [ ] Backfill utility for historical data
 
 ## License
 
