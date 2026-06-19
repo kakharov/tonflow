@@ -44,11 +44,13 @@ jobs:
 
       - name: Compute new version
         id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+          EXPLICIT: ${{ inputs.version }}
         run: |
           python - <<'EOF'
-          import re, sys
+          import os, re, sys
 
-          # Read current version from pyproject.toml
           text = open("pyproject.toml").read()
           match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
           if not match:
@@ -56,8 +58,8 @@ jobs:
           current = match.group(1)
           major, minor, patch = map(int, current.split("."))
 
-          explicit = "${{ inputs.version }}".strip()
-          bump = "${{ inputs.bump }}"
+          explicit = os.environ.get("EXPLICIT", "").strip()
+          bump = os.environ.get("BUMP", "patch")
 
           if explicit:
               new_version = explicit
@@ -65,12 +67,11 @@ jobs:
               new_version = f"{major + 1}.0.0"
           elif bump == "minor":
               new_version = f"{major}.{minor + 1}.0"
-          else:  # patch
+          else:
               new_version = f"{major}.{minor}.{patch + 1}"
 
           print(f"current={current}  bump={bump}  new={new_version}")
 
-          # Write new version back
           new_text = re.sub(
               r'^(version\s*=\s*)"[^"]+"',
               f'\\g<1>"{new_version}"',
@@ -79,8 +80,7 @@ jobs:
           )
           open("pyproject.toml", "w").write(new_text)
 
-          # Export to GITHUB_OUTPUT
-          with open("$GITHUB_OUTPUT", "a") as f:
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"new_version={new_version}\n")
           EOF
 
@@ -89,7 +89,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pyproject.toml
-          git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }}"
+          git diff --cached --quiet || git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }}"
           git tag "v${{ steps.version.outputs.new_version }}"
           git push origin main --follow-tags
 
