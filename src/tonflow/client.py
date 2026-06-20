@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
-from urllib.parse import urlencode
 
 import httpx
 
 from tonflow.addresses import normalize_address
 from tonflow.cache import JSONCache
-from tonflow.exceptions import TonflowAPIError, TonflowDecodeError
+from tonflow.exceptions import TonflowDecodeError
 from tonflow.jettons import decode_jetton_transfer
 from tonflow.models import (
     JettonTransfer,
@@ -20,19 +18,42 @@ from tonflow.models import (
     Transaction,
     TransactionStatus,
 )
+from tonflow.providers import Provider, TonAPIProvider
 
 
 @dataclass(slots=True)
 class TonClient:
-    """High-level async TON API client."""
+    """High-level async TON API client.
 
-    endpoint: str
+    By default uses :class:`~tonflow.providers.TonAPIProvider`. Pass a custom
+    ``provider`` to switch to TonCenter or any other backend without changing
+    the rest of your code::
+
+        client = TonClient(provider=TonCenterProvider(api_key="..."))
+
+    For backward compatibility, ``endpoint`` and ``api_key`` are still accepted
+    and implicitly create a :class:`~tonflow.providers.TonAPIProvider`.
+    """
+
+    endpoint: str = ""
     api_key: str | None = None
     timeout: float = 10.0
     http_client: httpx.AsyncClient | None = None
     cache: JSONCache | None = None
     cache_ttl_seconds: float | None = 30.0
-    _owns_http_client: bool = field(default=False, init=False, repr=False)
+    provider: Provider | None = None
+    _provider: Provider = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.provider is not None:
+            self._provider = self.provider
+        else:
+            self._provider = TonAPIProvider(
+                endpoint=self.endpoint,
+                api_key=self.api_key,
+                timeout=self.timeout,
+                http_client=self.http_client,
+            )
 
     async def __aenter__(self) -> TonClient:
         return self
@@ -41,12 +62,8 @@ class TonClient:
         await self.aclose()
 
     async def aclose(self) -> None:
-        """Close the owned HTTP client, if tonflow created one."""
-
-        if self.http_client is not None and self._owns_http_client:
-            await self.http_client.aclose()
-            self.http_client = None
-            self._owns_http_client = False
+        """Close the underlying provider's HTTP client."""
+        await self._provider.aclose()
 
     async def get_transactions(
         self,
@@ -56,7 +73,6 @@ class TonClient:
         before_lt: int | None = None,
     ) -> list[Transaction]:
         """Fetch and normalize account transactions."""
-
         normalized = normalize_address(address)
         if limit <= 0:
             msg = "limit must be greater than zero."
@@ -65,13 +81,27 @@ class TonClient:
             msg = "before_lt must be greater than or equal to zero."
             raise ValueError(msg)
 
-        payload = await self._request_json(
-            "GET",
-            f"/v2/blockchain/accounts/{normalized}/transactions",
-            params={"limit": limit, "before_lt": before_lt},
+        cache_key = f"txs:{normalized}:{limit}:{before_lt}"
+        if self.cache is not None:
+            cached = self.cache.get(cache_key)
+            if cached is not None:
+                items = cached.get("items")
+                if isinstance(items, list):
+                    return [Transaction.model_validate(item) for item in items]
+
+        raw_list = await self._provider.fetch_raw_transactions(
+            normalized, limit=limit, before_lt=before_lt
         )
-        transactions = _extract_transactions(payload)
-        return [_parse_transaction(item, account=normalized) for item in transactions]
+        transactions = [_parse_transaction(item, account=normalized) for item in raw_list]
+
+        if self.cache is not None:
+            self.cache.set(
+                cache_key,
+                {"items": [t.model_dump(mode="json") for t in transactions]},
+                ttl_seconds=self.cache_ttl_seconds,
+            )
+
+        return transactions
 
     async def get_jetton_transfers(
         self,
@@ -123,83 +153,10 @@ class TonClient:
 
         return transfers
 
-    async def _request_json(
-        self,
-        method: str,
-        path: str,
-        *,
-        params: dict[str, int | None] | None = None,
-    ) -> RawPayload:
-        clean_params = {key: value for key, value in (params or {}).items() if value is not None}
-        cache_key = _cache_key(method, path, clean_params)
-        if self.cache is not None and method.upper() == "GET":
-            cached = self.cache.get(cache_key)
-            if cached is not None:
-                return cached
 
-        client = self._get_http_client()
-
-        try:
-            response = await client.request(method, path, params=clean_params)
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise TonflowAPIError(
-                f"TON API request failed with status {exc.response.status_code}.",
-                status_code=exc.response.status_code,
-                url=str(exc.request.url),
-            ) from exc
-        except httpx.HTTPError as exc:
-            raise TonflowAPIError(f"TON API request failed: {exc}") from exc
-
-        try:
-            data = response.json()
-        except ValueError as exc:
-            raise TonflowDecodeError("TON API response is not valid JSON.") from exc
-
-        if not isinstance(data, dict):
-            raise TonflowDecodeError("TON API response must be a JSON object.")
-
-        if self.cache is not None and method.upper() == "GET":
-            self.cache.set(cache_key, data, ttl_seconds=self.cache_ttl_seconds)
-        return data
-
-    def _get_http_client(self) -> httpx.AsyncClient:
-        if self.http_client is not None:
-            return self.http_client
-
-        headers = {"Accept": "application/json"}
-        if self.api_key is not None:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-
-        self.http_client = httpx.AsyncClient(
-            base_url=self.endpoint.rstrip("/"),
-            headers=headers,
-            timeout=self.timeout,
-        )
-        self._owns_http_client = True
-        return self.http_client
-
-
-def _cache_key(method: str, path: str, params: dict[str, int]) -> str:
-    query = urlencode(sorted(params.items()))
-    if query:
-        return f"{method.upper()} {path}?{query}"
-    return f"{method.upper()} {path}"
-
-
-def _extract_transactions(payload: RawPayload) -> list[RawPayload]:
-    raw_transactions: Any = payload.get("transactions", payload.get("items"))
-    if raw_transactions is None:
-        raw_transactions = payload.get("result", [])
-    if not isinstance(raw_transactions, list):
-        raise TonflowDecodeError("TON API transactions field must be a list.")
-
-    transactions: list[RawPayload] = []
-    for item in raw_transactions:
-        if not isinstance(item, dict):
-            raise TonflowDecodeError("TON API transaction item must be an object.")
-        transactions.append(item)
-    return transactions
+# ---------------------------------------------------------------------------
+# Transaction parsing helpers
+# ---------------------------------------------------------------------------
 
 
 def _parse_transaction(raw: RawPayload, *, account: str) -> Transaction:

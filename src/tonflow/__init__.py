@@ -31,6 +31,7 @@ from tonflow.models import (
     Transaction,
     TransactionStatus,
 )
+from tonflow.providers import Provider, TonAPIProvider, TonCenterProvider
 from tonflow.stream import watch_address
 
 __all__ = [
@@ -40,6 +41,9 @@ __all__ = [
     "Message",
     "MessageDirection",
     "RawPayload",
+    "Provider",
+    "TonAPIProvider",
+    "TonCenterProvider",
     "TonClient",
     "TonflowModel",
     "Transaction",
