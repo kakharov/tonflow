@@ -80,3 +80,56 @@ class JettonTransfer(TonflowModel):
             return None
         normalized = value.strip()
         return normalized or None
+
+
+class JettonBurn(TonflowModel):
+    """Normalized Jetton burn event (TEP-74 op 0x595f07bc).
+
+    Emitted when a token holder destroys tokens by sending a burn message
+    from their Jetton wallet to the minter contract.
+    """
+
+    transaction_hash: str
+    sender: str | None
+    amount: Decimal = Field(ge=0)
+    raw_amount: int = Field(ge=0)
+    decimals: int = Field(ge=0, le=255)
+    jetton_wallet: str | None = None
+    jetton_minter: str | None = None
+    symbol: str | None = None
+    comment: str | None = None
+    raw: RawPayload = Field(default_factory=dict)
+
+    @field_validator("symbol")
+    @classmethod
+    def normalize_symbol(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
+class JettonMint(TonflowModel):
+    """Normalized Jetton mint event (TEP-74 internal_transfer op 0x178d4519).
+
+    Emitted when the minter contract creates new tokens and sends them to
+    a Jetton wallet via an internal_transfer message.
+    """
+
+    transaction_hash: str
+    recipient: str | None
+    amount: Decimal = Field(ge=0)
+    raw_amount: int = Field(ge=0)
+    decimals: int = Field(ge=0, le=255)
+    jetton_wallet: str | None = None
+    jetton_minter: str | None = None
+    symbol: str | None = None
+    raw: RawPayload = Field(default_factory=dict)
+
+    @field_validator("symbol")
+    @classmethod
+    def normalize_symbol(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None

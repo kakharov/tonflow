@@ -6,11 +6,17 @@ import pytest
 
 from tonflow.jettons import (
     OP_JETTON_BURN,
+    OP_JETTON_INTERNAL_TRANSFER,
     OP_JETTON_TRANSFER,
     OP_JETTON_TRANSFER_NOTIFICATION,
+    decode_jetton_burn,
+    decode_jetton_mint,
     decode_jetton_transfer,
+    extract_jetton_burns,
+    extract_jetton_mints,
     extract_jetton_transfers,
     is_jetton_burn,
+    is_jetton_mint,
     is_jetton_transfer,
     is_jetton_transfer_notification,
     normalize_amount,
@@ -216,3 +222,162 @@ def test_extract_no_messages() -> None:
 )
 def test_normalize_amount_parametrized(raw_amount: int, decimals: int, expected: Decimal) -> None:
     assert normalize_amount(raw_amount, decimals) == expected
+
+
+# ---------------------------------------------------------------------------
+# is_jetton_mint
+# ---------------------------------------------------------------------------
+
+
+def test_is_jetton_mint_true() -> None:
+    msg = _make_transfer_message(op_code=OP_JETTON_INTERNAL_TRANSFER)
+    assert is_jetton_mint(msg) is True
+
+
+def test_is_jetton_mint_false_for_transfer() -> None:
+    msg = _make_transfer_message(op_code=OP_JETTON_TRANSFER)
+    assert is_jetton_mint(msg) is False
+
+
+# ---------------------------------------------------------------------------
+# decode_jetton_burn
+# ---------------------------------------------------------------------------
+
+
+def _make_burn_message(
+    amount: int = 1_000_000_000,
+    source: str = WALLET,
+    destination: str = MINTER,
+) -> Message:
+    return Message(
+        source=source,
+        destination=destination,
+        direction=MessageDirection.OUTBOUND,
+        value=amount,
+        op_code=OP_JETTON_BURN,
+        raw={"amount": str(amount)},
+    )
+
+
+def test_decode_burn_basic() -> None:
+    msg = _make_burn_message(amount=5_000_000_000)
+    tx = _make_transaction(in_message=msg)
+    result = decode_jetton_burn(tx, msg, decimals=9, symbol="USDT")
+
+    assert result is not None
+    assert result.transaction_hash == TX_HASH
+    assert result.raw_amount == 5_000_000_000
+    assert result.amount == Decimal("5")
+    assert result.decimals == 9
+    assert result.symbol == "USDT"
+    assert result.sender == WALLET
+    assert result.jetton_wallet == WALLET
+    assert result.jetton_minter == MINTER
+
+
+def test_decode_burn_wrong_opcode_returns_none() -> None:
+    msg = _make_transfer_message(op_code=OP_JETTON_TRANSFER)
+    tx = _make_transaction(in_message=msg)
+    assert decode_jetton_burn(tx, msg) is None
+
+
+def test_decode_burn_explicit_minter() -> None:
+    msg = _make_burn_message()
+    tx = _make_transaction(in_message=msg)
+    result = decode_jetton_burn(tx, msg, jetton_minter="EQ" + "X" * 46)
+
+    assert result is not None
+    assert result.jetton_minter == "EQ" + "X" * 46
+
+
+def test_decode_burn_falls_back_minter_to_destination() -> None:
+    msg = _make_burn_message(destination=MINTER)
+    tx = _make_transaction(in_message=msg)
+    result = decode_jetton_burn(tx, msg)
+
+    assert result is not None
+    assert result.jetton_minter == MINTER
+
+
+# ---------------------------------------------------------------------------
+# decode_jetton_mint
+# ---------------------------------------------------------------------------
+
+
+def _make_mint_message(
+    amount: int = 2_000_000_000,
+    source: str = MINTER,
+    destination: str = WALLET,
+) -> Message:
+    return Message(
+        source=source,
+        destination=destination,
+        direction=MessageDirection.INBOUND,
+        value=amount,
+        op_code=OP_JETTON_INTERNAL_TRANSFER,
+        raw={"amount": str(amount)},
+    )
+
+
+def test_decode_mint_basic() -> None:
+    msg = _make_mint_message(amount=10_000_000_000)
+    tx = _make_transaction(in_message=msg)
+    result = decode_jetton_mint(tx, msg, decimals=9, symbol="SCALE")
+
+    assert result is not None
+    assert result.transaction_hash == TX_HASH
+    assert result.raw_amount == 10_000_000_000
+    assert result.amount == Decimal("10")
+    assert result.decimals == 9
+    assert result.symbol == "SCALE"
+    assert result.recipient == WALLET
+    assert result.jetton_wallet == WALLET
+    assert result.jetton_minter == MINTER
+
+
+def test_decode_mint_wrong_opcode_returns_none() -> None:
+    msg = _make_transfer_message(op_code=OP_JETTON_TRANSFER)
+    tx = _make_transaction(in_message=msg)
+    assert decode_jetton_mint(tx, msg) is None
+
+
+def test_decode_mint_explicit_minter() -> None:
+    msg = _make_mint_message()
+    tx = _make_transaction(in_message=msg)
+    result = decode_jetton_mint(tx, msg, jetton_minter="EQ" + "M" * 46)
+
+    assert result is not None
+    assert result.jetton_minter == "EQ" + "M" * 46
+
+
+# ---------------------------------------------------------------------------
+# extract_jetton_burns / extract_jetton_mints
+# ---------------------------------------------------------------------------
+
+
+def test_extract_burns_from_out_messages() -> None:
+    burn = _make_burn_message(amount=3_000_000_000)
+    tx = _make_transaction(out_messages=(burn,))
+    burns = extract_jetton_burns(tx, decimals=9)
+
+    assert len(burns) == 1
+    assert burns[0].amount == Decimal("3")
+
+
+def test_extract_burns_skips_non_burn_messages() -> None:
+    tx = _make_transaction(in_message=_make_transfer_message())
+    assert extract_jetton_burns(tx) == []
+
+
+def test_extract_mints_from_in_message() -> None:
+    mint = _make_mint_message(amount=7_000_000_000)
+    tx = _make_transaction(in_message=mint)
+    mints = extract_jetton_mints(tx, decimals=9)
+
+    assert len(mints) == 1
+    assert mints[0].amount == Decimal("7")
+
+
+def test_extract_mints_skips_non_mint_messages() -> None:
+    tx = _make_transaction(in_message=_make_transfer_message())
+    assert extract_jetton_mints(tx) == []
