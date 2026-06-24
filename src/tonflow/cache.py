@@ -7,7 +7,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from time import monotonic, time
-from typing import Protocol, TypeVar
+from typing import Any, Protocol, TypeVar
 
 from tonflow.models import RawPayload
 
@@ -118,3 +118,60 @@ class SQLiteCache:
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.path)
+
+
+class RedisCache:
+    """Redis-backed TTL cache for production services.
+
+    Requires the ``redis`` extra::
+
+        pip install tonflow[redis]
+
+    Pass any ``redis.Redis`` (or compatible) client — sync or async wrappers
+    are not supported; use the standard synchronous client::
+
+        import redis
+        client = redis.Redis(host="localhost", port=6379, db=0)
+        cache = RedisCache(client, prefix="myapp:")
+
+    The ``prefix`` isolates keys so multiple apps can share one Redis instance
+    without collisions.
+    """
+
+    def __init__(self, client: Any, *, prefix: str = "tonflow:") -> None:
+        self._client = client
+        self._prefix = prefix
+
+    def _key(self, key: str) -> str:
+        return f"{self._prefix}{key}"
+
+    def get(self, key: str) -> RawPayload | None:
+        raw = self._client.get(self._key(key))
+        if raw is None:
+            return None
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            msg = "Cached payload must be a JSON object."
+            raise ValueError(msg)
+        return data
+
+    def set(self, key: str, value: RawPayload, ttl_seconds: float | None = None) -> None:
+        encoded = json.dumps(value, sort_keys=True, separators=(",", ":"))
+        if ttl_seconds is not None:
+            self._client.set(self._key(key), encoded, px=int(ttl_seconds * 1000))
+        else:
+            self._client.set(self._key(key), encoded)
+
+    def clear(self) -> None:
+        """Delete all keys matching this cache's prefix.
+
+        Uses Redis SCAN to avoid blocking the server on large keyspaces.
+        """
+        pattern = f"{self._prefix}*"
+        cursor = 0
+        while True:
+            cursor, keys = self._client.scan(cursor, match=pattern, count=100)
+            if keys:
+                self._client.delete(*keys)
+            if cursor == 0:
+                break
