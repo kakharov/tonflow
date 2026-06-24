@@ -40,6 +40,7 @@ from tonflow.models import (
 )
 from tonflow.providers import Provider, TonAPIProvider, TonCenterProvider
 from tonflow.stream import watch_address
+from tonflow.websocket import stream_transactions_ws
 
 __all__ = [
     "InMemoryCache",
@@ -71,6 +72,7 @@ __all__ = [
     "is_jetton_transfer_notification",
     "normalize_amount",
     "watch_address",
+    "stream_transactions_ws",
     "jetton_transfers_to_csv",
     "jetton_transfers_to_json",
     "transactions_to_csv",
