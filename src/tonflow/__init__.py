@@ -6,7 +6,7 @@ from tonflow.addresses import (
     normalize_address,
     validate_address,
 )
-from tonflow.cache import InMemoryCache, JSONCache, SQLiteCache
+from tonflow.cache import InMemoryCache, JSONCache, RedisCache, SQLiteCache
 from tonflow.client import TonClient
 from tonflow.export import (
     jetton_transfers_to_csv,
@@ -47,6 +47,7 @@ __all__ = [
     "JettonBurn",
     "JettonMint",
     "JettonTransfer",
+    "RedisCache",
     "Message",
     "MessageDirection",
     "RawPayload",
