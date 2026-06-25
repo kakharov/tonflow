@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -69,12 +68,14 @@ async def test_confirm_timeout_raises():
     client._provider = MagicMock()
     client._provider.send_boc = AsyncMock()
 
-    with patch("tonflow.confirm.asyncio.sleep", new=AsyncMock()):
-        with patch("tonflow.confirm.time") as mock_time:
-            # time() sequence: deadline=start+timeout, then increments past deadline
-            mock_time.side_effect = [0, 0, 0, 999, 999]
-            with pytest.raises(TonflowTimeoutError):
-                await send_and_confirm(client, "EQA123", "boc_data", timeout=10, poll_interval=1)
+    with (
+        patch("tonflow.confirm.asyncio.sleep", new=AsyncMock()),
+        patch("tonflow.confirm.time") as mock_time,
+    ):
+        # time() sequence: deadline=start+timeout, then increments past deadline
+        mock_time.side_effect = [0, 0, 0, 999, 999]
+        with pytest.raises(TonflowTimeoutError):
+            await send_and_confirm(client, "EQA123", "boc_data", timeout=10, poll_interval=1)
 
 
 @pytest.mark.asyncio
@@ -86,14 +87,16 @@ async def test_confirm_expired_raises():
     client._provider = MagicMock()
     client._provider.send_boc = AsyncMock()
 
-    with patch("tonflow.confirm.asyncio.sleep", new=AsyncMock()):
-        with patch("tonflow.confirm.time") as mock_time:
-            # valid_until = 50, time() returns 100 (already past)
-            mock_time.side_effect = [0, 0, 0, 100, 100]
-            with pytest.raises(TonflowExpiredError):
-                await send_and_confirm(
-                    client, "EQA123", "boc_data", timeout=60, poll_interval=1, valid_until=50
-                )
+    with (
+        patch("tonflow.confirm.asyncio.sleep", new=AsyncMock()),
+        patch("tonflow.confirm.time") as mock_time,
+    ):
+        # valid_until = 50, time() returns 100 (already past)
+        mock_time.side_effect = [0, 0, 0, 100, 100]
+        with pytest.raises(TonflowExpiredError):
+            await send_and_confirm(
+                client, "EQA123", "boc_data", timeout=60, poll_interval=1, valid_until=50
+            )
 
 
 @pytest.mark.asyncio
@@ -105,14 +108,16 @@ async def test_confirm_expired_check_before_timeout():
     client._provider = MagicMock()
     client._provider.send_boc = AsyncMock()
 
-    with patch("tonflow.confirm.asyncio.sleep", new=AsyncMock()):
-        with patch("tonflow.confirm.time") as mock_time:
-            # Both deadline and valid_until passed; valid_until checked first
-            mock_time.side_effect = [0, 0, 0, 999, 999]
-            with pytest.raises(TonflowExpiredError):
-                await send_and_confirm(
-                    client, "EQA123", "boc_data", timeout=10, poll_interval=1, valid_until=50
-                )
+    with (
+        patch("tonflow.confirm.asyncio.sleep", new=AsyncMock()),
+        patch("tonflow.confirm.time") as mock_time,
+    ):
+        # Both deadline and valid_until passed; valid_until checked first
+        mock_time.side_effect = [0, 0, 0, 999, 999]
+        with pytest.raises(TonflowExpiredError):
+            await send_and_confirm(
+                client, "EQA123", "boc_data", timeout=10, poll_interval=1, valid_until=50
+            )
 
 
 @pytest.mark.asyncio
@@ -122,9 +127,11 @@ async def test_confirm_address_normalized():
     poll = [_make_tx(200)]
     client = _make_client(seed, poll)
 
-    with patch("tonflow.confirm.asyncio.sleep", new=AsyncMock()):
-        with patch("tonflow.confirm.normalize_address", return_value="EQ_NORMALIZED") as mock_norm:
-            await send_and_confirm(client, "raw_address", "boc_data", timeout=30, poll_interval=1)
+    with (
+        patch("tonflow.confirm.asyncio.sleep", new=AsyncMock()),
+        patch("tonflow.confirm.normalize_address", return_value="EQ_NORMALIZED") as mock_norm,
+    ):
+        await send_and_confirm(client, "raw_address", "boc_data", timeout=30, poll_interval=1)
 
     mock_norm.assert_called_once_with("raw_address")
     # both get_transactions calls use the normalized address

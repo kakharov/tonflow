@@ -80,9 +80,7 @@ class TonAPIProvider:
 
     async def send_boc(self, boc: str) -> None:
         """Broadcast a signed external message (BOC) to the network."""
-        await _request_json(
-            self._client(), "POST", "/v2/blockchain/message", params={"boc": boc}
-        )
+        await _request_json(self._client(), "POST", "/v2/blockchain/message", params={"boc": boc})
 
     async def aclose(self) -> None:
         if self._owns_client and self._http_client is not None:
