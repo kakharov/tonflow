@@ -38,6 +38,8 @@ from tonflow.models import (
     Transaction,
     TransactionStatus,
 )
+from tonflow.confirm import send_and_confirm
+from tonflow.exceptions import TonflowExpiredError, TonflowTimeoutError
 from tonflow.providers import Provider, TonAPIProvider, TonCenterProvider
 from tonflow.stream import watch_address
 from tonflow.websocket import stream_transactions_ws
@@ -71,6 +73,9 @@ __all__ = [
     "is_jetton_transfer",
     "is_jetton_transfer_notification",
     "normalize_amount",
+    "send_and_confirm",
+    "TonflowExpiredError",
+    "TonflowTimeoutError",
     "watch_address",
     "stream_transactions_ws",
     "jetton_transfers_to_csv",
