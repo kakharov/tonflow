@@ -31,7 +31,8 @@ async def main() -> None:
 
         count = 0
         async for tx in stream_transactions_ws(client, ADDRESS, api_key=API_KEY or None):
-            print(f"  [{count + 1}] hash={tx.hash[:16]}...  lt={tx.logical_time}  status={tx.status}")
+            status = tx.status
+            print(f"  [{count + 1}] hash={tx.hash[:16]}...  lt={tx.logical_time}  status={status}")
             count += 1
             if MAX_TXS is not None and count >= MAX_TXS:
                 print(f"\nReached {MAX_TXS} transactions. Stopping.")

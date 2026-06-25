@@ -59,7 +59,7 @@ async def main() -> None:
             print("The message may still land. Check the address manually.")
             return
 
-        print(f"\nConfirmed on-chain:")
+        print("\nConfirmed on-chain:")
         print(f"  hash           = {tx.hash}")
         print(f"  logical_time   = {tx.logical_time}")
         print(f"  status         = {tx.status}")

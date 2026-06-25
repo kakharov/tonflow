@@ -10,7 +10,7 @@ Run:
 
 import asyncio
 
-from tonflow import TonClient, TonCenterProvider
+from tonflow import TonCenterProvider, TonClient
 
 # TonCenter public endpoint — api_key is optional but avoids rate limiting.
 # Get a free key at https://toncenter.com
