@@ -1,5 +1,12 @@
 """TON blockchain parsing and local indexing toolkit."""
 
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("tonflow")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
+
 from tonflow.addresses import (
     is_raw_address,
     is_user_friendly_address,
@@ -45,6 +52,7 @@ from tonflow.stream import watch_address
 from tonflow.websocket import stream_transactions_ws
 
 __all__ = [
+    "__version__",
     "InMemoryCache",
     "JSONCache",
     "JettonBurn",
