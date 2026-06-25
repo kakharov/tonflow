@@ -27,11 +27,7 @@ async def main() -> None:
 
     print(f"Fetched {len(transactions)} transactions via TonCenter\n")
     for tx in transactions:
-        print(
-            f"  hash={tx.hash[:16]}..."
-            f"  lt={tx.logical_time}"
-            f"  status={tx.status}"
-        )
+        print(f"  hash={tx.hash[:16]}...  lt={tx.logical_time}  status={tx.status}")
 
 
 if __name__ == "__main__":
