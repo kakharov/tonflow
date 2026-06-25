@@ -27,6 +27,8 @@ class Provider(Protocol):
         before_lt: int | None,
     ) -> list[RawPayload]: ...
 
+    async def send_boc(self, boc: str) -> None: ...
+
     async def aclose(self) -> None: ...
 
 
@@ -75,6 +77,10 @@ class TonAPIProvider:
         path = f"/v2/blockchain/accounts/{address}/transactions"
         payload = await _request_json(self._client(), "GET", path, params=params)
         return _extract_list(payload, keys=("transactions", "items"))
+
+    async def send_boc(self, boc: str) -> None:
+        """Broadcast a signed external message (BOC) to the network."""
+        await _request_json(self._client(), "POST", "/v2/blockchain/message", params={"boc": boc})
 
     async def aclose(self) -> None:
         if self._owns_client and self._http_client is not None:
@@ -132,6 +138,13 @@ class TonCenterProvider:
         payload = await _request_json(self._client(), "GET", "/getTransactions", params=params)
         raw_list = _extract_list(payload, keys=("result",))
         return [_normalize_toncenter_tx(item) for item in raw_list]
+
+    async def send_boc(self, boc: str) -> None:
+        """Broadcast a signed external message (BOC) to the network."""
+        params: dict[str, Any] = {"boc": boc}
+        if self._api_key:
+            params["api_key"] = self._api_key
+        await _request_json(self._client(), "POST", "/sendBoc", params=params)
 
     async def aclose(self) -> None:
         if self._owns_client and self._http_client is not None:

@@ -8,6 +8,8 @@ from tonflow.addresses import (
 )
 from tonflow.cache import InMemoryCache, JSONCache, RedisCache, SQLiteCache
 from tonflow.client import TonClient
+from tonflow.confirm import send_and_confirm
+from tonflow.exceptions import TonflowExpiredError, TonflowTimeoutError
 from tonflow.export import (
     jetton_transfers_to_csv,
     jetton_transfers_to_json,
@@ -71,6 +73,9 @@ __all__ = [
     "is_jetton_transfer",
     "is_jetton_transfer_notification",
     "normalize_amount",
+    "send_and_confirm",
+    "TonflowExpiredError",
+    "TonflowTimeoutError",
     "watch_address",
     "stream_transactions_ws",
     "jetton_transfers_to_csv",
