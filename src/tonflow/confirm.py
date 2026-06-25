@@ -6,7 +6,7 @@ import asyncio
 from time import time
 
 from tonflow.addresses import normalize_address
-from tonflow.client import TonClient
+from tonflow.client import TonClient, _parse_transaction
 from tonflow.exceptions import TonflowExpiredError, TonflowTimeoutError
 from tonflow.models import Transaction
 
@@ -68,8 +68,15 @@ async def send_and_confirm(
     """
     normalized = normalize_address(address)
 
+    async def _fetch(limit: int, before_lt: int | None = None) -> list[Transaction]:
+        # Bypass client cache — we need fresh data on every poll.
+        raw_list = await client._provider.fetch_raw_transactions(
+            normalized, limit=limit, before_lt=before_lt
+        )
+        return [_parse_transaction(item, account=normalized) for item in raw_list]
+
     # Step 1 — establish baseline: highest LT seen before we send.
-    seed = await client.get_transactions(normalized, limit=1)
+    seed = await _fetch(1)
     baseline_lt: int | None = seed[0].logical_time if seed else None
 
     # Step 2 — broadcast.
@@ -94,7 +101,7 @@ async def send_and_confirm(
                 "The message may still land later — check the address manually."
             )
 
-        txs = await client.get_transactions(normalized, limit=5)
+        txs = await _fetch(5)
         for tx in txs:
             if baseline_lt is None or tx.logical_time > baseline_lt:
                 return tx
