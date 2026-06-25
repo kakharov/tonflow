@@ -303,11 +303,19 @@ All implement the `JSONCache` protocol — you can write your own backend by imp
 
 See the [`examples/`](examples/) directory:
 
+**0.1.0**
 - [`get_transactions.py`](examples/get_transactions.py) — fetch and print recent transactions
 - [`get_jetton_transfers.py`](examples/get_jetton_transfers.py) — fetch and print Jetton transfers
-- [`watch_address.py`](examples/watch_address.py) — stream new transactions in real time
+- [`watch_address.py`](examples/watch_address.py) — polling stream for new transactions
 - [`export_to_csv.py`](examples/export_to_csv.py) — save transactions and transfers to CSV
 - [`cache_with_sqlite.py`](examples/cache_with_sqlite.py) — local SQLite cache in action
+
+**0.2.0**
+- [`toncenter_provider.py`](examples/toncenter_provider.py) — switch to TonCenter API
+- [`stream_websocket.py`](examples/stream_websocket.py) — real-time WebSocket streaming
+- [`send_and_confirm.py`](examples/send_and_confirm.py) — broadcast BOC and wait for confirmation
+- [`cache_with_redis.py`](examples/cache_with_redis.py) — Redis cache backend
+- [`jetton_burn_mint.py`](examples/jetton_burn_mint.py) — decode Jetton burn and mint events
 
 ## Development
 
