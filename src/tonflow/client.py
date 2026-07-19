@@ -103,6 +103,17 @@ class TonClient:
 
         return transactions
 
+    async def get_balance(self, address: str) -> int:
+        """Return the account balance in nanotons.
+
+        Example::
+
+            balance = await client.get_balance("EQ...")
+            print(f"{balance / 1e9:.2f} TON")
+        """
+        normalized = normalize_address(address)
+        return await self._provider.fetch_balance(normalized)
+
     async def get_jetton_transfers(
         self,
         address: str,
