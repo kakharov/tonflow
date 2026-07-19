@@ -354,10 +354,25 @@ mypy src/
 - [x] JSON and CSV export helpers
 
 ### `0.3.0` — planned
-- [ ] NFT transfer event decoding
-- [ ] CLI: `tonflow scan <address>`
+- [ ] NFT transfer event decoding (TEP-62)
+- [ ] `get_balance()` — fetch account TON balance
+- [ ] Backfill utility — paginate all historical transactions for an address
 - [ ] Postgres export helper
-- [ ] Backfill utility for historical data
+- [ ] CLI: `tonflow scan <address>`
+
+### `0.4.0` — planned
+- [ ] Async Redis cache (`redis.asyncio` — fixes event loop blocking)
+- [ ] Multi-address watching (`watch_addresses([addr1, addr2, ...])`)
+- [ ] Auto-retry with exponential backoff on API errors
+- [ ] TON DNS resolution (`resolve_domain("example.ton")`)
+- [ ] Built-in rate limiter in providers
+
+### `0.5.0` — planned
+- [ ] DEX event decoding — Ston.fi swaps, DeDust liquidity events
+- [ ] Staking / nominator pool event decoding
+- [ ] Webhook sink (`stream_to_webhook(client, address, url)`)
+- [ ] LiteServer provider (direct node connection, no API key)
+- [ ] Prometheus metrics export
 
 ## License
 

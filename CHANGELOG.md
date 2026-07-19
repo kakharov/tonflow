@@ -3,6 +3,45 @@
 ---
 
 <details>
+<summary><strong>0.5.0</strong> — DEX events, Webhook sink, LiteServer provider <em>(planned)</em></summary>
+
+- DEX event decoding — Ston.fi swaps and DeDust liquidity events
+- Staking / nominator pool event decoding
+- Webhook sink: push new transactions to an HTTP endpoint
+- LiteServer provider — direct node connection, no API key required
+- Prometheus metrics export
+
+</details>
+
+---
+
+<details>
+<summary><strong>0.4.0</strong> — Async Redis, multi-address watch, retry, TON DNS <em>(planned)</em></summary>
+
+- Async Redis cache (`redis.asyncio`) — replaces sync client that blocks the event loop
+- `watch_addresses([addr1, addr2, ...])` — watch multiple accounts simultaneously
+- Auto-retry with exponential backoff on transient API errors
+- TON DNS resolution: `resolve_domain("example.ton")` → raw address
+- Built-in rate limiter in providers to avoid 429s on public endpoints
+
+</details>
+
+---
+
+<details>
+<summary><strong>0.3.0</strong> — NFT decoding, balance, backfill, Postgres, CLI <em>(planned)</em></summary>
+
+- NFT transfer event decoding (TEP-62)
+- `get_balance()` — fetch account TON balance
+- Backfill utility — paginate the full transaction history for an address
+- Postgres export helper
+- CLI: `tonflow scan <address>`
+
+</details>
+
+---
+
+<details>
 <summary><strong>0.2.0</strong> — Providers, WebSocket, Redis, send_and_confirm</summary>
 
 ### Added
