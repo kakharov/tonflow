@@ -149,6 +149,40 @@ burns = extract_jetton_burns(tx, decimals=9, symbol="JETTON")
 mints = extract_jetton_mints(tx, decimals=9, symbol="JETTON")
 ```
 
+### Get account balance
+
+```python
+nanotons = await client.get_balance("EQ...")
+print(f"{nanotons / 1e9:.9f} TON")
+```
+
+### Backfill all historical transactions
+
+```python
+from tonflow import backfill_transactions
+
+async for tx in backfill_transactions(client, "EQ...", page_size=100):
+    print(tx.hash, tx.logical_time)
+```
+
+Stop at a known logical time to avoid re-processing old data:
+
+```python
+async for tx in backfill_transactions(client, "EQ...", stop_before_lt=42000000):
+    process(tx)
+```
+
+### Export to SQL (Postgres)
+
+```python
+from tonflow import transactions_to_sql, jetton_transfers_to_sql
+
+sql = transactions_to_sql(txs)
+# sql includes CREATE TABLE IF NOT EXISTS + INSERT ... ON CONFLICT (hash) DO NOTHING
+with open("dump.sql", "w") as f:
+    f.write(sql)
+```
+
 ### Export to CSV or JSON
 
 ```python
@@ -190,6 +224,7 @@ TonClient(
 |---|---|
 | `get_transactions(address, limit, before_lt)` | Fetch and normalize account transactions |
 | `get_jetton_transfers(address, limit, before_lt, decimals, jetton_minter, symbol)` | Fetch transactions and return only Jetton transfer events |
+| `get_balance(address)` | Return the account balance in nanotons |
 | `aclose()` | Close the underlying HTTP client |
 
 Use as an async context manager (`async with`) for automatic cleanup.
@@ -220,6 +255,28 @@ Broadcasts a signed BOC and polls until the transaction appears on-chain.
 `valid_until` is a Unix timestamp — if it passes before confirmation,
 `TonflowExpiredError` is raised immediately (the message is permanently rejected;
 build a new one with an updated `seqno`).
+
+### `get_balance`
+
+```python
+await client.get_balance(address: str) -> int
+```
+
+Returns the account balance in nanotons. Delegates to the configured provider without caching.
+
+### `backfill_transactions`
+
+```python
+backfill_transactions(
+    client: TonClient,
+    address: str,
+    *,
+    page_size: int = 100,
+    stop_before_lt: int | None = None,
+) -> AsyncIterator[Transaction]
+```
+
+Async generator that pages through all historical transactions newest-first. Bypasses the cache so results always reflect the current chain state. Stops when there are no more pages or when `stop_before_lt` is reached (exclusive).
 
 ### `watch_address`
 
@@ -257,6 +314,28 @@ Note: does not reconnect automatically on connection drop.
 | `JettonTransfer` | `transaction_hash`, `sender`, `recipient`, `amount`, `raw_amount`, `decimals`, `symbol`, `jetton_wallet`, `jetton_minter`, `comment` |
 | `JettonBurn` | `transaction_hash`, `sender`, `amount`, `raw_amount`, `decimals`, `symbol`, `jetton_wallet`, `jetton_minter` |
 | `JettonMint` | `transaction_hash`, `recipient`, `amount`, `raw_amount`, `decimals`, `symbol`, `jetton_wallet`, `jetton_minter` |
+| `NftTransfer` | `transaction_hash`, `sender`, `recipient`, `nft_address`, `nft_collection`, `comment` |
+
+### NFT helpers
+
+| Function | Description |
+|---|---|
+| `extract_nft_transfers(tx, nft_collection=None)` | Return all `NftTransfer` events from a transaction |
+| `decode_nft_transfer(tx, msg, nft_collection=None)` | Decode a single message into `NftTransfer` |
+| `is_nft_transfer(msg)` | True if message op code is `0x5FCC3D14` |
+| `is_nft_ownership_assigned(msg)` | True if message op code is `0x05138D91` |
+
+### CLI
+
+```
+tonflow scan <address> [--limit N] [--provider tonapi|toncenter] [--endpoint URL] [--api-key KEY]
+tonflow balance <address> [--provider tonapi|toncenter] [--endpoint URL] [--api-key KEY]
+```
+
+`tonflow scan` prints a table of recent transactions (hash, logical time, status, fees, timestamp).  
+`tonflow balance` prints the balance in TON and nanotons.
+
+When `--provider toncenter` is used without a custom `--endpoint`, the default TonCenter endpoint is used automatically.
 
 ### Cache backends
 
@@ -276,8 +355,10 @@ All implement the `JSONCache` protocol — you can write your own backend by imp
 |---|---|
 | `transactions_to_json(txs, indent=None)` | JSON string |
 | `transactions_to_csv(txs)` | CSV string |
+| `transactions_to_sql(txs, include_ddl=True)` | Postgres-compatible SQL with `ON CONFLICT (hash) DO NOTHING` |
 | `jetton_transfers_to_json(transfers, indent=None)` | JSON string |
 | `jetton_transfers_to_csv(transfers)` | CSV string |
+| `jetton_transfers_to_sql(transfers, include_ddl=True)` | Postgres-compatible SQL |
 
 `Decimal` amounts are serialized as strings to preserve precision.
 
@@ -317,6 +398,12 @@ See the [`examples/`](examples/) directory:
 - [`cache_with_redis.py`](examples/cache_with_redis.py) — Redis cache backend
 - [`jetton_burn_mint.py`](examples/jetton_burn_mint.py) — decode Jetton burn and mint events
 
+**0.3.0**
+- [`nft_transfers.py`](examples/nft_transfers.py) — decode NFT transfer events (TEP-62)
+- [`get_balance.py`](examples/get_balance.py) — fetch account TON balance
+- [`backfill.py`](examples/backfill.py) — paginate all historical transactions
+- [`export_to_sql.py`](examples/export_to_sql.py) — generate Postgres-compatible SQL dump
+
 ## Development
 
 ```powershell
@@ -338,7 +425,14 @@ mypy src/
 
 ## Roadmap
 
-### `0.2.0` — current
+### `0.3.0` — current
+- [x] NFT transfer event decoding (TEP-62) — `extract_nft_transfers`, `decode_nft_transfer`
+- [x] `get_balance()` — fetch account TON balance in nanotons
+- [x] `backfill_transactions()` — async generator for all historical transactions
+- [x] SQL export helpers — `transactions_to_sql`, `jetton_transfers_to_sql` (Postgres-compatible)
+- [x] CLI — `tonflow scan <address>`, `tonflow balance <address>`
+
+### `0.2.0`
 - [x] Pluggable provider system (`TonAPIProvider`, `TonCenterProvider`)
 - [x] `send_and_confirm()` — broadcast BOC and poll until on-chain confirmation
 - [x] WebSocket streaming via TonAPI (`stream_transactions_ws`)
@@ -352,13 +446,6 @@ mypy src/
 - [x] `watch_address()` polling stream
 - [x] Address validation (user-friendly and raw formats)
 - [x] JSON and CSV export helpers
-
-### `0.3.0` — planned
-- [ ] NFT transfer event decoding (TEP-62)
-- [ ] `get_balance()` — fetch account TON balance
-- [ ] Backfill utility — paginate all historical transactions for an address
-- [ ] Postgres export helper
-- [ ] CLI: `tonflow scan <address>`
 
 ### `0.4.0` — planned
 - [ ] Async Redis cache (`redis.asyncio` — fixes event loop blocking)
