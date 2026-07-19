@@ -42,10 +42,17 @@ from tonflow.models import (
     JettonTransfer,
     Message,
     MessageDirection,
+    NftTransfer,
     RawPayload,
     TonflowModel,
     Transaction,
     TransactionStatus,
+)
+from tonflow.nfts import (
+    decode_nft_transfer,
+    extract_nft_transfers,
+    is_nft_ownership_assigned,
+    is_nft_transfer,
 )
 from tonflow.providers import Provider, TonAPIProvider, TonCenterProvider
 from tonflow.stream import watch_address
@@ -54,6 +61,11 @@ from tonflow.websocket import stream_transactions_ws
 __all__ = [
     "__version__",
     "InMemoryCache",
+    "NftTransfer",
+    "decode_nft_transfer",
+    "extract_nft_transfers",
+    "is_nft_transfer",
+    "is_nft_ownership_assigned",
     "JSONCache",
     "JettonBurn",
     "JettonMint",

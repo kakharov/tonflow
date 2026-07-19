@@ -82,6 +82,24 @@ class JettonTransfer(TonflowModel):
         return normalized or None
 
 
+class NftTransfer(TonflowModel):
+    """Normalized NFT transfer event (TEP-62 op 0x5fcc3d14).
+
+    Emitted when an NFT item is transferred from one owner to another.
+    The sender is the previous owner; the recipient is the new owner.
+    ``nft_address`` is the NFT item contract; ``nft_collection`` is the
+    collection contract (optional — not always present in the message).
+    """
+
+    transaction_hash: str
+    sender: str | None
+    recipient: str | None
+    nft_address: str | None = None
+    nft_collection: str | None = None
+    comment: str | None = None
+    raw: RawPayload = Field(default_factory=dict)
+
+
 class JettonBurn(TonflowModel):
     """Normalized Jetton burn event (TEP-74 op 0x595f07bc).
 
