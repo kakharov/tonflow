@@ -27,6 +27,8 @@ class Provider(Protocol):
         before_lt: int | None,
     ) -> list[RawPayload]: ...
 
+    async def fetch_balance(self, address: str) -> int: ...
+
     async def send_boc(self, boc: str) -> None: ...
 
     async def aclose(self) -> None: ...
@@ -77,6 +79,11 @@ class TonAPIProvider:
         path = f"/v2/blockchain/accounts/{address}/transactions"
         payload = await _request_json(self._client(), "GET", path, params=params)
         return _extract_list(payload, keys=("transactions", "items"))
+
+    async def fetch_balance(self, address: str) -> int:
+        """Return the account balance in nanotons."""
+        payload = await _request_json(self._client(), "GET", f"/v2/accounts/{address}")
+        return _extract_balance(payload, key="balance")
 
     async def send_boc(self, boc: str) -> None:
         """Broadcast a signed external message (BOC) to the network."""
@@ -138,6 +145,14 @@ class TonCenterProvider:
         payload = await _request_json(self._client(), "GET", "/getTransactions", params=params)
         raw_list = _extract_list(payload, keys=("result",))
         return [_normalize_toncenter_tx(item) for item in raw_list]
+
+    async def fetch_balance(self, address: str) -> int:
+        """Return the account balance in nanotons."""
+        params: dict[str, Any] = {"address": address}
+        if self._api_key:
+            params["api_key"] = self._api_key
+        payload = await _request_json(self._client(), "GET", "/getAddressBalance", params=params)
+        return _extract_balance(payload, key="result")
 
     async def send_boc(self, boc: str) -> None:
         """Broadcast a signed external message (BOC) to the network."""
@@ -225,6 +240,16 @@ async def _request_json(
         raise TonflowDecodeError("TON API response must be a JSON object.")
 
     return data
+
+
+def _extract_balance(payload: RawPayload, *, key: str) -> int:
+    value = payload.get(key)
+    if value is None:
+        raise TonflowDecodeError(f"TON API balance response missing field '{key}'.")
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise TonflowDecodeError(f"TON API balance field '{key}' must be an integer.") from exc
 
 
 def _extract_list(payload: RawPayload, *, keys: tuple[str, ...]) -> list[RawPayload]:

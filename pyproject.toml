@@ -41,6 +41,9 @@ dev = [
   "mypy>=1.10",
 ]
 
+[project.scripts]
+tonflow = "tonflow.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/kakharov/tonflow"
 Repository = "https://github.com/kakharov/tonflow"

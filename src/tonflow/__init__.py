@@ -13,6 +13,7 @@ from tonflow.addresses import (
     normalize_address,
     validate_address,
 )
+from tonflow.backfill import backfill_transactions
 from tonflow.cache import InMemoryCache, JSONCache, RedisCache, SQLiteCache
 from tonflow.client import TonClient
 from tonflow.confirm import send_and_confirm
@@ -20,8 +21,10 @@ from tonflow.exceptions import TonflowExpiredError, TonflowTimeoutError
 from tonflow.export import (
     jetton_transfers_to_csv,
     jetton_transfers_to_json,
+    jetton_transfers_to_sql,
     transactions_to_csv,
     transactions_to_json,
+    transactions_to_sql,
 )
 from tonflow.jettons import (
     decode_jetton_burn,
@@ -98,10 +101,13 @@ __all__ = [
     "TonflowTimeoutError",
     "watch_address",
     "stream_transactions_ws",
+    "backfill_transactions",
     "jetton_transfers_to_csv",
     "jetton_transfers_to_json",
+    "jetton_transfers_to_sql",
     "transactions_to_csv",
     "transactions_to_json",
+    "transactions_to_sql",
     "is_raw_address",
     "is_user_friendly_address",
     "normalize_address",
