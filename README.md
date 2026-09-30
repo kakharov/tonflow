@@ -34,11 +34,13 @@ Requires Python 3.12+.
 import asyncio
 from tonflow import TonClient
 
+
 async def main() -> None:
     async with TonClient(endpoint="https://tonapi.io") as client:
         txs = await client.get_transactions("EQ...", limit=10)
         for tx in txs:
             print(tx.hash, tx.logical_time, tx.status)
+
 
 asyncio.run(main())
 ```
@@ -189,7 +191,7 @@ with open("dump.sql", "w") as f:
 from tonflow import jetton_transfers_to_csv, transactions_to_json
 
 json_str = transactions_to_json(txs, indent=2)
-csv_str  = jetton_transfers_to_csv(transfers)
+csv_str = jetton_transfers_to_csv(transfers)
 
 with open("transfers.csv", "w") as f:
     f.write(csv_str)
@@ -200,9 +202,9 @@ with open("transfers.csv", "w") as f:
 ```python
 from tonflow import validate_address, is_user_friendly_address, is_raw_address
 
-validate_address("EQ...")           # raises ValueError if invalid
-is_user_friendly_address("EQ...")   # True / False
-is_raw_address("0:abcd...")         # True / False
+validate_address("EQ...")  # raises ValueError if invalid
+is_user_friendly_address("EQ...")  # True / False
+is_raw_address("0:abcd...")  # True / False
 ```
 
 ## API reference

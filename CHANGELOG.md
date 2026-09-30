@@ -121,7 +121,7 @@ from tonflow import send_and_confirm
 tx = await send_and_confirm(
     client,
     wallet_address,
-    boc,                        # base64-encoded signed BOC
+    boc,  # base64-encoded signed BOC
     timeout=60,
     valid_until=int(time()) + 60,
 )
