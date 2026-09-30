@@ -120,6 +120,58 @@ class SQLiteCache:
         return sqlite3.connect(self.path)
 
 
+class AsyncRedisCache:
+    """Async Redis-backed TTL cache using ``redis.asyncio``.
+
+    Drop-in replacement for :class:`RedisCache` when you want fully async I/O
+    without ``asyncio.to_thread`` overhead.  Pass a ``redis.asyncio.Redis``
+    client::
+
+        import redis.asyncio as aioredis
+        from tonflow.cache import AsyncRedisCache
+
+        r = aioredis.Redis(host="localhost", port=6379, db=0)
+        cache = AsyncRedisCache(r, prefix="myapp:")
+
+    :class:`~tonflow.client.TonClient` detects this class automatically and
+    ``await``s the cache calls instead of wrapping them in a thread.
+    """
+
+    def __init__(self, client: Any, *, prefix: str = "tonflow:") -> None:
+        self._client = client
+        self._prefix = prefix
+
+    def _key(self, key: str) -> str:
+        return f"{self._prefix}{key}"
+
+    async def get(self, key: str) -> RawPayload | None:
+        raw = await self._client.get(self._key(key))
+        if raw is None:
+            return None
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            msg = "Cached payload must be a JSON object."
+            raise ValueError(msg)
+        return data
+
+    async def set(self, key: str, value: RawPayload, ttl_seconds: float | None = None) -> None:
+        encoded = json.dumps(value, sort_keys=True, separators=(",", ":"))
+        if ttl_seconds is not None:
+            await self._client.set(self._key(key), encoded, px=int(ttl_seconds * 1000))
+        else:
+            await self._client.set(self._key(key), encoded)
+
+    async def clear(self) -> None:
+        pattern = f"{self._prefix}*"
+        cursor = 0
+        while True:
+            cursor, keys = await self._client.scan(cursor, match=pattern, count=100)
+            if keys:
+                await self._client.delete(*keys)
+            if cursor == 0:
+                break
+
+
 class RedisCache:
     """Redis-backed TTL cache for production services.
 

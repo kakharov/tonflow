@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
+import inspect
 from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 
@@ -85,8 +86,8 @@ class TonClient:
 
         cache_key = f"txs:{normalized}:{limit}:{before_lt}"
         if self.cache is not None:
-            cached = await asyncio.to_thread(self.cache.get, cache_key)
-            if cached is not None:
+            cached = await _cache_get(self.cache, cache_key)
+            if isinstance(cached, dict):
                 items = cached.get("items")
                 if isinstance(items, list):
                     return [Transaction.model_validate(item) for item in items]
@@ -97,8 +98,8 @@ class TonClient:
         transactions = [_parse_transaction(item, account=normalized) for item in raw_list]
 
         if self.cache is not None:
-            await asyncio.to_thread(
-                self.cache.set,
+            await _cache_set(
+                self.cache,
                 cache_key,
                 {"items": [t.model_dump(mode="json") for t in transactions]},
                 self.cache_ttl_seconds,
@@ -304,3 +305,22 @@ def _first_value(raw: RawPayload, key: str, fallback_keys: tuple[str, ...]) -> o
         if fallback_key in raw:
             return raw[fallback_key]
     return None
+
+
+# ---------------------------------------------------------------------------
+# Cache helpers — transparently handle sync (RedisCache, SQLiteCache) and
+# async (AsyncRedisCache) backends.
+# ---------------------------------------------------------------------------
+
+
+async def _cache_get(cache: Any, key: str) -> object:
+    result = cache.get(key)
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
+async def _cache_set(cache: Any, key: str, value: RawPayload, ttl: float | None) -> None:
+    result = cache.set(key, value, ttl)
+    if inspect.isawaitable(result):
+        await result

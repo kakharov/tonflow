@@ -81,3 +81,54 @@ async def watch_address(
             yield tx
 
         last_lt = max(tx.logical_time for tx in new_txs)
+
+
+async def watch_addresses(
+    client: TonClient,
+    addresses: list[str],
+    *,
+    interval_seconds: float = 5.0,
+    lookback: int = 10,
+) -> AsyncIterator[Transaction]:
+    """Watch multiple addresses concurrently, merging events into one stream.
+
+    Internally runs one :func:`watch_address` coroutine per address in
+    parallel; events from all addresses are merged into a single async
+    iterator as they arrive.  The order across addresses is
+    arrival-time order (not logical-time order), but each individual address
+    still yields its own transactions in ascending logical-time order.
+
+    Args:
+        client: A configured :class:`TonClient` instance.
+        addresses: List of TON addresses to watch.
+        interval_seconds: Seconds between polls for each address.
+        lookback: Lookback window passed to each :func:`watch_address`.
+
+    Yields:
+        :class:`Transaction` objects from any of the watched addresses.
+
+    Example::
+
+        async with TonClient() as client:
+            async for tx in watch_addresses(client, ["EQ...", "UQ..."]):
+                print(tx.account, tx.hash)
+    """
+    if not addresses:
+        return
+
+    queue: asyncio.Queue[Transaction] = asyncio.Queue()
+
+    async def _drain(addr: str) -> None:
+        async for tx in watch_address(
+            client, addr, interval_seconds=interval_seconds, lookback=lookback
+        ):
+            await queue.put(tx)
+
+    tasks = [asyncio.create_task(_drain(addr)) for addr in addresses]
+    try:
+        while True:
+            yield await queue.get()
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
