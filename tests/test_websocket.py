@@ -88,6 +88,13 @@ def _ws_messages(lt: int = 100) -> list[str]:
 def _fake_websockets(fake_ws: FakeWebSocket, capture_url: list[str] | None = None):  # type: ignore[return]
     """Inject a fake websockets module into sys.modules for the duration of the block."""
     mod = types.ModuleType("websockets")
+    exc_mod = types.ModuleType("websockets.exceptions")
+
+    class _ConnectionClosed(Exception):
+        pass
+
+    exc_mod.ConnectionClosed = _ConnectionClosed  # type: ignore[attr-defined]
+    mod.exceptions = exc_mod  # type: ignore[attr-defined]
 
     def connect(url: str, **_kwargs: object) -> FakeWebSocket:
         if capture_url is not None:
@@ -95,7 +102,7 @@ def _fake_websockets(fake_ws: FakeWebSocket, capture_url: list[str] | None = Non
         return fake_ws
 
     mod.connect = connect  # type: ignore[attr-defined]
-    with patch.dict(sys.modules, {"websockets": mod}):
+    with patch.dict(sys.modules, {"websockets": mod, "websockets.exceptions": exc_mod}):
         yield
 
 
