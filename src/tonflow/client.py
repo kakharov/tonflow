@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 
 import httpx
@@ -83,7 +84,7 @@ class TonClient:
 
         cache_key = f"txs:{normalized}:{limit}:{before_lt}"
         if self.cache is not None:
-            cached = self.cache.get(cache_key)
+            cached = await asyncio.to_thread(self.cache.get, cache_key)
             if cached is not None:
                 items = cached.get("items")
                 if isinstance(items, list):
@@ -95,10 +96,11 @@ class TonClient:
         transactions = [_parse_transaction(item, account=normalized) for item in raw_list]
 
         if self.cache is not None:
-            self.cache.set(
+            await asyncio.to_thread(
+                self.cache.set,
                 cache_key,
                 {"items": [t.model_dump(mode="json") for t in transactions]},
-                ttl_seconds=self.cache_ttl_seconds,
+                self.cache_ttl_seconds,
             )
 
         return transactions

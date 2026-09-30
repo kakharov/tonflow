@@ -29,13 +29,65 @@
 ---
 
 <details>
-<summary><strong>0.3.0</strong> — NFT decoding, balance, backfill, Postgres, CLI <em>(planned)</em></summary>
+<summary><strong>0.3.0</strong> — NFT decoding, balance, backfill, SQL export, CLI</summary>
 
-- NFT transfer event decoding (TEP-62)
-- `get_balance()` — fetch account TON balance
-- Backfill utility — paginate the full transaction history for an address
-- Postgres export helper
-- CLI: `tonflow scan <address>`
+### Added
+
+**NFT transfer event decoding** (TEP-62)
+
+Decode NFT ownership transfers from raw transactions.
+
+```python
+from tonflow import extract_nft_transfers
+
+transfers = extract_nft_transfers(tx, nft_collection="EQcollection...")
+for t in transfers:
+    print(t.sender, "→", t.recipient, t.nft_address)
+```
+
+New model: `NftTransfer` (`transaction_hash`, `sender`, `recipient`, `nft_address`, `nft_collection`, `comment`).
+
+**`get_balance()`**
+
+Fetch an account's TON balance in nanotons without caching.
+
+```python
+nanotons = await client.get_balance("EQ...")
+print(f"{nanotons / 1e9:.9f} TON")
+```
+
+**`backfill_transactions()`**
+
+Async generator that paginates through all historical transactions, bypassing the cache.
+
+```python
+from tonflow import backfill_transactions
+
+async for tx in backfill_transactions(client, "EQ...", page_size=100):
+    store(tx)
+```
+
+Accepts `stop_before_lt` to resume from a known checkpoint.
+
+**SQL export helpers**
+
+Generate Postgres-compatible SQL with idempotent `INSERT … ON CONFLICT (hash) DO NOTHING`.
+
+```python
+from tonflow import transactions_to_sql, jetton_transfers_to_sql
+
+sql = transactions_to_sql(txs)  # includes CREATE TABLE IF NOT EXISTS
+with open("dump.sql", "w") as f:
+    f.write(sql)
+```
+
+**CLI**
+
+```bash
+tonflow scan EQ...           # print recent transactions
+tonflow balance EQ...        # print account balance
+tonflow scan EQ... --provider toncenter --api-key KEY
+```
 
 </details>
 
@@ -69,7 +121,7 @@ from tonflow import send_and_confirm
 tx = await send_and_confirm(
     client,
     wallet_address,
-    boc,                        # base64-encoded signed BOC
+    boc,  # base64-encoded signed BOC
     timeout=60,
     valid_until=int(time()) + 60,
 )
