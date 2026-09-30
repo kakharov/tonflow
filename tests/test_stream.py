@@ -2,26 +2,21 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from tonflow.models import Transaction, TransactionStatus
 from tonflow.stream import watch_address
 
 
-def _tx(lt: int) -> Transaction:
-    return Transaction(
-        hash=f"hash{lt:04d}",
-        account="EQAddr",
-        lt=lt,
-        status=TransactionStatus.SUCCESS,
-    )
+def _raw(lt: int) -> dict:
+    return {"hash": f"hash{lt:04d}", "lt": lt, "success": True}
 
 
-def _mock_client(side_effects: list[list[Transaction]]) -> AsyncMock:
-    client = AsyncMock()
-    client.get_transactions = AsyncMock(side_effect=side_effects)
+def _mock_client(side_effects: list[list[dict]]) -> MagicMock:
+    client = MagicMock()
+    client._provider = MagicMock()
+    client._provider.fetch_raw_transactions = AsyncMock(side_effect=side_effects)
     return client
 
 
@@ -32,8 +27,8 @@ def _mock_client(side_effects: list[list[Transaction]]) -> AsyncMock:
 
 @pytest.mark.asyncio
 async def test_watch_yields_new_transactions_after_seed() -> None:
-    seed = [_tx(100), _tx(90)]
-    poll1 = [_tx(110), _tx(100), _tx(90)]
+    seed = [_raw(100), _raw(90)]
+    poll1 = [_raw(110), _raw(100), _raw(90)]
 
     client = _mock_client([seed, poll1])
 
@@ -46,12 +41,13 @@ async def test_watch_yields_new_transactions_after_seed() -> None:
 
 @pytest.mark.asyncio
 async def test_watch_skips_seen_transactions() -> None:
-    seed = [_tx(100)]
-    poll1 = [_tx(100)]  # same as seed — nothing new
+    seed = [_raw(100)]
+    poll1 = [_raw(100)]  # same as seed — nothing new
+    poll2 = [_raw(200), _raw(100)]
 
-    client = _mock_client([seed, poll1, [_tx(200), _tx(100)]])
+    client = _mock_client([seed, poll1, poll2])
 
-    collected: list[Transaction] = []
+    collected = []
     with patch("tonflow.stream.asyncio.sleep", new_callable=AsyncMock):
         stream = watch_address(client, "EQAddr", interval_seconds=1)
         async for tx in stream:
@@ -64,12 +60,12 @@ async def test_watch_skips_seen_transactions() -> None:
 
 @pytest.mark.asyncio
 async def test_watch_yields_in_ascending_order() -> None:
-    seed: list[Transaction] = []
-    poll1 = [_tx(300), _tx(200), _tx(100)]  # API returns newest first
+    seed: list[dict] = []
+    poll1 = [_raw(300), _raw(200), _raw(100)]
 
     client = _mock_client([seed, poll1])
 
-    collected: list[Transaction] = []
+    collected = []
     with patch("tonflow.stream.asyncio.sleep", new_callable=AsyncMock):
         stream = watch_address(client, "EQAddr", interval_seconds=1)
         async for tx in stream:
@@ -83,13 +79,13 @@ async def test_watch_yields_in_ascending_order() -> None:
 
 @pytest.mark.asyncio
 async def test_watch_empty_poll_does_not_yield() -> None:
-    seed = [_tx(100)]
-    poll1: list[Transaction] = []  # empty — nothing to yield
-    poll2 = [_tx(200)]
+    seed = [_raw(100)]
+    poll1: list[dict] = []
+    poll2 = [_raw(200)]
 
     client = _mock_client([seed, poll1, poll2])
 
-    collected: list[Transaction] = []
+    collected = []
     with patch("tonflow.stream.asyncio.sleep", new_callable=AsyncMock):
         stream = watch_address(client, "EQAddr", interval_seconds=1)
         async for tx in stream:
@@ -102,12 +98,12 @@ async def test_watch_empty_poll_does_not_yield() -> None:
 
 @pytest.mark.asyncio
 async def test_watch_empty_seed_yields_all_on_first_poll() -> None:
-    seed: list[Transaction] = []
-    poll1 = [_tx(50), _tx(40)]
+    seed: list[dict] = []
+    poll1 = [_raw(50), _raw(40)]
 
     client = _mock_client([seed, poll1])
 
-    collected: list[Transaction] = []
+    collected = []
     with patch("tonflow.stream.asyncio.sleep", new_callable=AsyncMock):
         stream = watch_address(client, "EQAddr", interval_seconds=1)
         async for tx in stream:
@@ -120,13 +116,13 @@ async def test_watch_empty_seed_yields_all_on_first_poll() -> None:
 
 @pytest.mark.asyncio
 async def test_watch_updates_last_lt_across_polls() -> None:
-    seed = [_tx(100)]
-    poll1 = [_tx(200), _tx(100)]
-    poll2 = [_tx(300), _tx(200)]
+    seed = [_raw(100)]
+    poll1 = [_raw(200), _raw(100)]
+    poll2 = [_raw(300), _raw(200)]
 
     client = _mock_client([seed, poll1, poll2])
 
-    collected: list[Transaction] = []
+    collected = []
     with patch("tonflow.stream.asyncio.sleep", new_callable=AsyncMock):
         stream = watch_address(client, "EQAddr", interval_seconds=1)
         async for tx in stream:
@@ -135,3 +131,19 @@ async def test_watch_updates_last_lt_across_polls() -> None:
                 break
 
     assert [tx.logical_time for tx in collected] == [200, 300]
+
+
+@pytest.mark.asyncio
+async def test_watch_bypasses_cache() -> None:
+    """Verify watch_address calls _provider directly, not client.get_transactions."""
+    seed = [_raw(100)]
+    poll1 = [_raw(200), _raw(100)]
+
+    client = _mock_client([seed, poll1])
+
+    with patch("tonflow.stream.asyncio.sleep", new_callable=AsyncMock):
+        stream = watch_address(client, "EQAddr", interval_seconds=1)
+        await stream.__anext__()
+
+    assert client._provider.fetch_raw_transactions.await_count >= 1
+    assert not hasattr(client, "get_transactions") or not client.get_transactions.called
