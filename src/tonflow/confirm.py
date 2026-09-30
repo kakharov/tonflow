@@ -98,7 +98,8 @@ async def send_and_confirm(
         if time() > deadline:
             raise TonflowTimeoutError(
                 f"Transaction not confirmed within {timeout}s. "
-                "The message may still land later — check the address manually."
+                "The message may still land later — check the wallet's seqno or balance "
+                "before retrying to avoid sending the same BOC twice."
             )
 
         txs = await _fetch(5)
