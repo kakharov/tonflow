@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import random
 from typing import Any, Protocol, runtime_checkable
 
 import httpx
 
 from tonflow.exceptions import TonflowAPIError, TonflowDecodeError
 from tonflow.models import RawPayload
+
+# Status codes that are worth retrying (rate-limit and transient server errors).
+_RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 
 @runtime_checkable
@@ -47,12 +52,16 @@ class TonAPIProvider:
         api_key: str | None = None,
         timeout: float = 10.0,
         http_client: httpx.AsyncClient | None = None,
+        retry_attempts: int = 3,
+        retry_backoff: float = 0.5,
     ) -> None:
         self._endpoint = endpoint
         self._api_key = api_key
         self._timeout = timeout
         self._http_client = http_client
         self._owns_client = http_client is None
+        self._retry_attempts = retry_attempts
+        self._retry_backoff = retry_backoff
 
     def _client(self) -> httpx.AsyncClient:
         if self._http_client is None:
@@ -77,17 +86,35 @@ class TonAPIProvider:
         if before_lt is not None:
             params["before_lt"] = before_lt
         path = f"/v2/blockchain/accounts/{address}/transactions"
-        payload = await _request_json(self._client(), "GET", path, params=params)
+        payload = await _request_json(
+            self._client(),
+            "GET",
+            path,
+            params=params,
+            retry_attempts=self._retry_attempts,
+            retry_backoff=self._retry_backoff,
+        )
         return _extract_list(payload, keys=("transactions", "items"))
 
     async def fetch_balance(self, address: str) -> int:
-        """Return the account balance in nanotons."""
-        payload = await _request_json(self._client(), "GET", f"/v2/accounts/{address}")
+        payload = await _request_json(
+            self._client(),
+            "GET",
+            f"/v2/accounts/{address}",
+            retry_attempts=self._retry_attempts,
+            retry_backoff=self._retry_backoff,
+        )
         return _extract_balance(payload, key="balance")
 
     async def send_boc(self, boc: str) -> None:
-        """Broadcast a signed external message (BOC) to the network."""
-        await _request_json(self._client(), "POST", "/v2/blockchain/message", params={"boc": boc})
+        await _request_json(
+            self._client(),
+            "POST",
+            "/v2/blockchain/message",
+            params={"boc": boc},
+            retry_attempts=self._retry_attempts,
+            retry_backoff=self._retry_backoff,
+        )
 
     async def aclose(self) -> None:
         if self._owns_client and self._http_client is not None:
@@ -114,12 +141,16 @@ class TonCenterProvider:
         api_key: str | None = None,
         timeout: float = 10.0,
         http_client: httpx.AsyncClient | None = None,
+        retry_attempts: int = 3,
+        retry_backoff: float = 0.5,
     ) -> None:
         self._endpoint = endpoint
         self._api_key = api_key
         self._timeout = timeout
         self._http_client = http_client
         self._owns_client = http_client is None
+        self._retry_attempts = retry_attempts
+        self._retry_backoff = retry_backoff
 
     def _client(self) -> httpx.AsyncClient:
         if self._http_client is None:
@@ -142,29 +173,104 @@ class TonCenterProvider:
             params["lt"] = before_lt
         if self._api_key:
             params["api_key"] = self._api_key
-        payload = await _request_json(self._client(), "GET", "/getTransactions", params=params)
+        payload = await _request_json(
+            self._client(),
+            "GET",
+            "/getTransactions",
+            params=params,
+            retry_attempts=self._retry_attempts,
+            retry_backoff=self._retry_backoff,
+        )
         raw_list = _extract_list(payload, keys=("result",))
         return [_normalize_toncenter_tx(item) for item in raw_list]
 
     async def fetch_balance(self, address: str) -> int:
-        """Return the account balance in nanotons."""
         params: dict[str, Any] = {"address": address}
         if self._api_key:
             params["api_key"] = self._api_key
-        payload = await _request_json(self._client(), "GET", "/getAddressBalance", params=params)
+        payload = await _request_json(
+            self._client(),
+            "GET",
+            "/getAddressBalance",
+            params=params,
+            retry_attempts=self._retry_attempts,
+            retry_backoff=self._retry_backoff,
+        )
         return _extract_balance(payload, key="result")
 
     async def send_boc(self, boc: str) -> None:
-        """Broadcast a signed external message (BOC) to the network."""
         params: dict[str, Any] = {"boc": boc}
         if self._api_key:
             params["api_key"] = self._api_key
-        await _request_json(self._client(), "POST", "/sendBoc", params=params)
+        await _request_json(
+            self._client(),
+            "POST",
+            "/sendBoc",
+            params=params,
+            retry_attempts=self._retry_attempts,
+            retry_backoff=self._retry_backoff,
+        )
 
     async def aclose(self) -> None:
         if self._owns_client and self._http_client is not None:
             await self._http_client.aclose()
             self._http_client = None
+
+
+# ---------------------------------------------------------------------------
+# Failover provider
+# ---------------------------------------------------------------------------
+
+
+class FailoverProvider:
+    """Tries *primary* first; falls back to *fallback* on API errors.
+
+    Useful for high-availability setups where TonAPI is the preferred endpoint
+    but TonCenter (or any other provider) is used as a backup::
+
+        from tonflow import TonClient
+        from tonflow.providers import FailoverProvider, TonAPIProvider, TonCenterProvider
+
+        primary = TonAPIProvider(api_key="tonapi-key")
+        fallback = TonCenterProvider(api_key="toncenter-key")
+        client = TonClient(provider=FailoverProvider(primary, fallback))
+    """
+
+    def __init__(self, primary: Provider, fallback: Provider) -> None:
+        self._primary = primary
+        self._fallback = fallback
+
+    async def fetch_raw_transactions(
+        self,
+        address: str,
+        *,
+        limit: int,
+        before_lt: int | None,
+    ) -> list[RawPayload]:
+        try:
+            return await self._primary.fetch_raw_transactions(
+                address, limit=limit, before_lt=before_lt
+            )
+        except TonflowAPIError:
+            return await self._fallback.fetch_raw_transactions(
+                address, limit=limit, before_lt=before_lt
+            )
+
+    async def fetch_balance(self, address: str) -> int:
+        try:
+            return await self._primary.fetch_balance(address)
+        except TonflowAPIError:
+            return await self._fallback.fetch_balance(address)
+
+    async def send_boc(self, boc: str) -> None:
+        try:
+            await self._primary.send_boc(boc)
+        except TonflowAPIError:
+            await self._fallback.send_boc(boc)
+
+    async def aclose(self) -> None:
+        await self._primary.aclose()
+        await self._fallback.aclose()
 
 
 # ---------------------------------------------------------------------------
@@ -218,18 +324,33 @@ async def _request_json(
     path: str,
     *,
     params: dict[str, Any] | None = None,
+    retry_attempts: int = 1,
+    retry_backoff: float = 0.5,
 ) -> RawPayload:
-    try:
-        response = await client.request(method, path, params=params)
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        raise TonflowAPIError(
-            f"TON API request failed with status {exc.response.status_code}.",
-            status_code=exc.response.status_code,
-            url=str(exc.request.url),
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise TonflowAPIError(f"TON API request failed: {exc}") from exc
+    last_error: TonflowAPIError | None = None
+    for attempt in range(max(1, retry_attempts)):
+        try:
+            response = await client.request(method, path, params=params)
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            err = TonflowAPIError(
+                f"TON API request failed with status {status}.",
+                status_code=status,
+                url=str(exc.request.url),
+            )
+            if status in _RETRYABLE_STATUSES and attempt < retry_attempts - 1:
+                last_error = err
+                delay = retry_backoff * (2**attempt) + random.uniform(0, 0.1)
+                await asyncio.sleep(delay)
+                continue
+            raise err from exc
+        except httpx.HTTPError as exc:
+            raise TonflowAPIError(f"TON API request failed: {exc}") from exc
+        else:
+            break
+    else:
+        raise last_error  # type: ignore[misc]
 
     try:
         data = response.json()
