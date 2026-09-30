@@ -14,7 +14,7 @@ from tonflow.addresses import (
     validate_address,
 )
 from tonflow.backfill import backfill_transactions
-from tonflow.cache import InMemoryCache, JSONCache, RedisCache, SQLiteCache
+from tonflow.cache import AsyncRedisCache, InMemoryCache, JSONCache, RedisCache, SQLiteCache
 from tonflow.client import TonClient
 from tonflow.confirm import send_and_confirm
 from tonflow.exceptions import TonflowExpiredError, TonflowTimeoutError
@@ -58,13 +58,15 @@ from tonflow.nfts import (
     is_nft_ownership_assigned,
     is_nft_transfer,
 )
-from tonflow.providers import Provider, TonAPIProvider, TonCenterProvider
-from tonflow.stream import watch_address
+from tonflow.providers import FailoverProvider, Provider, TonAPIProvider, TonCenterProvider
+from tonflow.stream import watch_address, watch_addresses
 from tonflow.websocket import stream_transactions_ws
 
 __all__ = [
     "__version__",
+    "AsyncRedisCache",
     "Balance",
+    "FailoverProvider",
     "InMemoryCache",
     "NftTransfer",
     "decode_nft_transfer",
@@ -82,6 +84,7 @@ __all__ = [
     "Provider",
     "TonAPIProvider",
     "TonCenterProvider",
+    "watch_addresses",
     "TonClient",
     "TonflowModel",
     "Transaction",

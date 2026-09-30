@@ -16,13 +16,100 @@
 ---
 
 <details>
-<summary><strong>0.4.0</strong> — Async Redis, multi-address watch, retry, TON DNS <em>(planned)</em></summary>
+<summary><strong>0.4.0</strong> — Retry, failover, async Redis, WS reconnect, watch_addresses</summary>
 
-- Async Redis cache (`redis.asyncio`) — replaces sync client that blocks the event loop
-- `watch_addresses([addr1, addr2, ...])` — watch multiple accounts simultaneously
-- Auto-retry with exponential backoff on transient API errors
-- TON DNS resolution: `resolve_domain("example.ton")` → raw address
-- Built-in rate limiter in providers to avoid 429s on public endpoints
+### Added
+
+**Auto-retry with exponential backoff**
+
+Both `TonAPIProvider` and `TonCenterProvider` now retry automatically on `429`,
+`500`, `502`, `503`, and `504` responses. The delay doubles each attempt
+(`backoff * 2^attempt`) with a small random jitter to avoid thundering herd.
+
+```python
+from tonflow.providers import TonAPIProvider
+from tonflow import TonClient
+
+# 5 attempts, starting at 1 s backoff
+provider = TonAPIProvider(api_key="...", retry_attempts=5, retry_backoff=1.0)
+client = TonClient(provider=provider)
+```
+
+Default: `retry_attempts=3`, `retry_backoff=0.5`.
+
+**`FailoverProvider`**
+
+Wraps two providers — tries the primary, automatically switches to the fallback
+on any `TonflowAPIError`.
+
+```python
+from tonflow import TonClient
+from tonflow.providers import FailoverProvider, TonAPIProvider, TonCenterProvider
+
+provider = FailoverProvider(
+    TonAPIProvider(api_key="tonapi-key"),
+    TonCenterProvider(api_key="toncenter-key"),
+)
+client = TonClient(provider=provider)
+```
+
+**`AsyncRedisCache`** (`pip install tonflow[redis]`)
+
+Fully async Redis cache using `redis.asyncio`. Eliminates the event-loop
+blocking that `RedisCache` (sync) causes in long-running services.
+
+```python
+import redis.asyncio as aioredis
+from tonflow import TonClient, AsyncRedisCache
+
+r = aioredis.Redis(host="localhost", port=6379, db=0)
+cache = AsyncRedisCache(r, prefix="myapp:")
+client = TonClient(cache=cache, cache_ttl_seconds=30)
+```
+
+`TonClient` detects the async backend automatically — no other changes needed.
+
+**WebSocket auto-reconnect**
+
+`stream_transactions_ws` now reconnects automatically after a dropped connection
+with exponential backoff (1 s → 2 s → 4 s … up to 60 s).
+Pass `reconnect=False` to raise immediately on disconnect (old behaviour).
+
+```python
+from tonflow.websocket import stream_transactions_ws
+
+# Runs indefinitely, reconnects transparently on network hiccups
+async for tx in stream_transactions_ws(client, "EQ...", api_key="...", reconnect=True):
+    process(tx)
+```
+
+**`watch_addresses`**
+
+Watch multiple addresses concurrently in a single `async for` loop.
+Events from all addresses are merged as they arrive.
+
+```python
+from tonflow import watch_addresses
+
+async for tx in watch_addresses(client, ["EQ...", "UQ...", "EQ2..."]):
+    print(tx.account, tx.hash)
+```
+
+**`Balance` dataclass**
+
+`get_balance()` now returns a `Balance` object instead of a plain `int`,
+preserving the raw nanoton value without float precision loss.
+
+```python
+b = await client.get_balance("EQ...")
+print(f"{b.ton:.9f} TON  ({b.nano} nanotons)")
+```
+
+### Changed
+
+- `get_balance()` return type: `int` → `Balance(nano: int, ton: Decimal)`
+- `TonAPIProvider` / `TonCenterProvider`: new `retry_attempts` and `retry_backoff` kwargs
+- `stream_transactions_ws`: new `reconnect` kwarg (default `True`)
 
 </details>
 
