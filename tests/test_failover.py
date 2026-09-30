@@ -14,9 +14,7 @@ def _provider(balance: int | None = None, *, fail: bool = False) -> MagicMock:
     p = MagicMock()
     if fail:
         p.fetch_balance = AsyncMock(side_effect=TonflowAPIError("boom", status_code=503))
-        p.fetch_raw_transactions = AsyncMock(
-            side_effect=TonflowAPIError("boom", status_code=503)
-        )
+        p.fetch_raw_transactions = AsyncMock(side_effect=TonflowAPIError("boom", status_code=503))
         p.send_boc = AsyncMock(side_effect=TonflowAPIError("boom", status_code=503))
     else:
         p.fetch_balance = AsyncMock(return_value=balance)
