@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 
 from tonflow.addresses import normalize_address
-from tonflow.cache import JSONCache
+from tonflow.cache import AsyncJSONCache, JSONCache
 from tonflow.exceptions import TonflowDecodeError
 from tonflow.jettons import decode_jetton_transfer
 from tonflow.models import (
@@ -42,7 +42,7 @@ class TonClient:
     api_key: str | None = None
     timeout: float = 10.0
     http_client: httpx.AsyncClient | None = None
-    cache: JSONCache | None = None
+    cache: JSONCache | AsyncJSONCache | None = None
     cache_ttl_seconds: float | None = 30.0
     provider: Provider | None = None
     _provider: Provider = field(init=False, repr=False)
