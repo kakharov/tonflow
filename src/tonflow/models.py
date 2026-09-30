@@ -82,6 +82,17 @@ class JettonTransfer(TonflowModel):
         return normalized or None
 
 
+class Balance(TonflowModel):
+    """Account TON balance in two representations.
+
+    ``nano`` is the raw value in nanotons (integer, no precision loss).
+    ``ton`` is the human-readable value in TON (Decimal, 9 decimal places).
+    """
+
+    nano: int = Field(ge=0)
+    ton: Decimal = Field(ge=0)
+
+
 class NftTransfer(TonflowModel):
     """Normalized NFT transfer event (TEP-62 op 0x5fcc3d14).
 
