@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -39,7 +39,7 @@ async def test_watch_addresses_merges_from_multiple() -> None:
                     results.append(tx)
                     if len(results) == 2:
                         break
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
     accounts = {tx.account for tx in results}

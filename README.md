@@ -79,10 +79,19 @@ async with asyncio.timeout(60):
         print(tx.hash)
 ```
 
+### Watch multiple addresses
+
+```python
+from tonflow import watch_addresses
+
+async for tx in watch_addresses(client, ["EQ...", "UQ...", "EQ2..."]):
+    print(tx.account, tx.hash)
+```
+
 ### Stream new transactions (WebSocket)
 
 Lower latency alternative — push notifications instead of polling.
-Requires `pip install tonflow[ws]`.
+Requires `pip install tonflow[ws]`. Reconnects automatically on network drops.
 
 ```python
 from tonflow.websocket import stream_transactions_ws
@@ -118,6 +127,30 @@ from tonflow import TonClient, TonCenterProvider
 client = TonClient(provider=TonCenterProvider(api_key="your-key"))
 ```
 
+### Automatic failover between providers
+
+```python
+from tonflow import TonClient
+from tonflow.providers import FailoverProvider, TonAPIProvider, TonCenterProvider
+
+provider = FailoverProvider(
+    TonAPIProvider(api_key="tonapi-key"),
+    TonCenterProvider(api_key="toncenter-key"),
+)
+client = TonClient(provider=provider)
+```
+
+### Tune retry behaviour
+
+```python
+from tonflow.providers import TonAPIProvider
+from tonflow import TonClient
+
+# Up to 5 attempts, starting at 1 s backoff; doubles each attempt
+provider = TonAPIProvider(api_key="...", retry_attempts=5, retry_backoff=1.0)
+client = TonClient(provider=provider)
+```
+
 ### Cache responses locally
 
 ```python
@@ -134,11 +167,24 @@ client = TonClient(
 
 Requires `pip install tonflow[redis]`.
 
+Sync client (simple, small services):
+
 ```python
 import redis
 from tonflow import TonClient, RedisCache
 
 cache = RedisCache(redis.Redis(host="localhost"), prefix="myapp:")
+client = TonClient(endpoint="https://tonapi.io", cache=cache, cache_ttl_seconds=30)
+```
+
+Async client (recommended for long-running async services):
+
+```python
+import redis.asyncio as aioredis
+from tonflow import TonClient, AsyncRedisCache
+
+r = aioredis.Redis(host="localhost", port=6379, db=0)
+cache = AsyncRedisCache(r, prefix="myapp:")
 client = TonClient(endpoint="https://tonapi.io", cache=cache, cache_ttl_seconds=30)
 ```
 
@@ -154,8 +200,8 @@ mints = extract_jetton_mints(tx, decimals=9, symbol="JETTON")
 ### Get account balance
 
 ```python
-nanotons = await client.get_balance("EQ...")
-print(f"{nanotons / 1e9:.9f} TON")
+b = await client.get_balance("EQ...")
+print(f"{b.ton:.9f} TON  ({b.nano} nanotons)")
 ```
 
 ### Backfill all historical transactions
@@ -226,7 +272,7 @@ TonClient(
 |---|---|
 | `get_transactions(address, limit, before_lt)` | Fetch and normalize account transactions |
 | `get_jetton_transfers(address, limit, before_lt, decimals, jetton_minter, symbol)` | Fetch transactions and return only Jetton transfer events |
-| `get_balance(address)` | Return the account balance in nanotons |
+| `get_balance(address)` | Return `Balance(nano, ton)` for the account |
 | `aclose()` | Close the underlying HTTP client |
 
 Use as an async context manager (`async with`) for automatic cleanup.
@@ -235,8 +281,12 @@ Use as an async context manager (`async with`) for automatic cleanup.
 
 | Class | Description |
 |---|---|
-| `TonAPIProvider(endpoint, api_key, timeout)` | Default. Uses Bearer token auth. |
-| `TonCenterProvider(endpoint, api_key, timeout)` | Free public API. `api_key` optional but recommended. |
+| `TonAPIProvider(endpoint, api_key, timeout, retry_attempts, retry_backoff)` | Default. Uses Bearer token auth. |
+| `TonCenterProvider(endpoint, api_key, timeout, retry_attempts, retry_backoff)` | Free public API. `api_key` optional but recommended. |
+| `FailoverProvider(primary, fallback)` | Tries primary; switches to fallback on any `TonflowAPIError`. |
+
+Both concrete providers retry retryable HTTP errors (`429`, `5xx`) automatically.
+Default: `retry_attempts=3`, `retry_backoff=0.5` (seconds, doubles each attempt with jitter).
 
 Pass any provider to `TonClient(provider=...)`. Implement the `Provider` protocol to add your own.
 
@@ -261,10 +311,11 @@ build a new one with an updated `seqno`).
 ### `get_balance`
 
 ```python
-await client.get_balance(address: str) -> int
+await client.get_balance(address: str) -> Balance
 ```
 
-Returns the account balance in nanotons. Delegates to the configured provider without caching.
+Returns `Balance(nano: int, ton: Decimal)`. `nano` is the raw nanoton value (no precision loss);
+`ton` is `Decimal(nano) / Decimal(10**9)`. Delegates to the configured provider without caching.
 
 ### `backfill_transactions`
 
@@ -293,6 +344,20 @@ watch_address(
 
 Polls every `interval_seconds`. Seeds a baseline on the first call so existing transactions are not replayed. Yields new transactions in ascending logical-time order.
 
+### `watch_addresses`
+
+```python
+watch_addresses(
+    client: TonClient,
+    addresses: list[str],
+    interval_seconds: float = 5.0,
+    lookback: int = 10,
+) -> AsyncIterator[Transaction]
+```
+
+Runs one `watch_address` per address in parallel and merges all events into a single stream.
+Events arrive in order of delivery (not global logical time).
+
 ### `stream_transactions_ws`
 
 ```python
@@ -301,11 +366,13 @@ stream_transactions_ws(
     address: str,
     ws_url: str = "wss://tonapi.io/v2/websocket",
     api_key: str | None = None,
+    reconnect: bool = True,
 ) -> AsyncIterator[Transaction]
 ```
 
 Push-based streaming via TonAPI WebSocket. Requires `pip install tonflow[ws]`.
-Note: does not reconnect automatically on connection drop.
+With `reconnect=True` (default) reconnects automatically on connection drop with
+exponential backoff (1 s → 2 s → 4 s … up to 60 s).
 
 ### Models
 
@@ -313,6 +380,7 @@ Note: does not reconnect automatically on connection drop.
 |---|---|
 | `Transaction` | `hash`, `account`, `logical_time`, `timestamp`, `status`, `in_message`, `out_messages`, `total_fees` |
 | `Message` | `source`, `destination`, `direction`, `value`, `body`, `op_code` |
+| `Balance` | `nano: int`, `ton: Decimal` |
 | `JettonTransfer` | `transaction_hash`, `sender`, `recipient`, `amount`, `raw_amount`, `decimals`, `symbol`, `jetton_wallet`, `jetton_minter`, `comment` |
 | `JettonBurn` | `transaction_hash`, `sender`, `amount`, `raw_amount`, `decimals`, `symbol`, `jetton_wallet`, `jetton_minter` |
 | `JettonMint` | `transaction_hash`, `recipient`, `amount`, `raw_amount`, `decimals`, `symbol`, `jetton_wallet`, `jetton_minter` |
@@ -345,11 +413,11 @@ When `--provider toncenter` is used without a custom `--endpoint`, the default T
 |---|---|---|
 | `InMemoryCache` | In-process dict | Tests, short-lived scripts |
 | `SQLiteCache(path)` | SQLite file on disk | Local scripts, small services |
-| `RedisCache(client, prefix)` | Redis | Production services (`pip install tonflow[redis]`) |
+| `RedisCache(client, prefix)` | Redis (sync) | Services where sync Redis is already in use |
+| `AsyncRedisCache(client, prefix)` | Redis (async) | Long-running async services (`pip install tonflow[redis]`) |
 
-All implement the `JSONCache` protocol — you can write your own backend by implementing `get`, `set`, and `clear`.
-
-> **Note:** `RedisCache` uses a synchronous Redis client. In a fully async service, calls to Redis will briefly block the event loop. For long-running high-throughput services consider wrapping calls in `asyncio.get_event_loop().run_in_executor()`.
+`TonClient` detects sync vs async backends automatically.
+All implement the same `get` / `set` / `clear` interface — you can write your own backend.
 
 ### Export helpers
 
@@ -406,6 +474,12 @@ See the [`examples/`](examples/) directory:
 - [`backfill.py`](examples/backfill.py) — paginate all historical transactions
 - [`export_to_sql.py`](examples/export_to_sql.py) — generate Postgres-compatible SQL dump
 
+**0.4.0**
+- [`failover_provider.py`](examples/failover_provider.py) — automatic primary/fallback provider switching
+- [`async_redis_cache.py`](examples/async_redis_cache.py) — fully async Redis cache with `redis.asyncio`
+- [`watch_multiple_addresses.py`](examples/watch_multiple_addresses.py) — watch several accounts in one loop
+- [`retry_config.py`](examples/retry_config.py) — custom retry attempts and backoff
+
 ## Development
 
 ```powershell
@@ -427,9 +501,17 @@ mypy src/
 
 ## Roadmap
 
-### `0.3.0` — current
+### `0.4.0` — current
+- [x] Auto-retry with exponential backoff on `429` / `5xx` responses
+- [x] `FailoverProvider` — automatic primary → fallback switching
+- [x] `AsyncRedisCache` using `redis.asyncio` (no event-loop blocking)
+- [x] WebSocket auto-reconnect with exponential backoff
+- [x] `watch_addresses([addr1, addr2, ...])` — multi-address polling stream
+- [x] `Balance(nano, ton)` dataclass — `get_balance()` returns both representations
+
+### `0.3.0`
 - [x] NFT transfer event decoding (TEP-62) — `extract_nft_transfers`, `decode_nft_transfer`
-- [x] `get_balance()` — fetch account TON balance in nanotons
+- [x] `get_balance()` — fetch account TON balance
 - [x] `backfill_transactions()` — async generator for all historical transactions
 - [x] SQL export helpers — `transactions_to_sql`, `jetton_transfers_to_sql` (Postgres-compatible)
 - [x] CLI — `tonflow scan <address>`, `tonflow balance <address>`
@@ -448,13 +530,6 @@ mypy src/
 - [x] `watch_address()` polling stream
 - [x] Address validation (user-friendly and raw formats)
 - [x] JSON and CSV export helpers
-
-### `0.4.0` — planned
-- [ ] Async Redis cache (`redis.asyncio` — fixes event loop blocking)
-- [ ] Multi-address watching (`watch_addresses([addr1, addr2, ...])`)
-- [ ] Auto-retry with exponential backoff on API errors
-- [ ] TON DNS resolution (`resolve_domain("example.ton")`)
-- [ ] Built-in rate limiter in providers
 
 ### `0.5.0` — planned
 - [ ] DEX event decoding — Ston.fi swaps, DeDust liquidity events
