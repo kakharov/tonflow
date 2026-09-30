@@ -15,7 +15,7 @@ T = TypeVar("T")
 
 
 class JSONCache(Protocol):
-    """Cache backend interface for JSON-compatible API responses."""
+    """Synchronous cache backend interface for JSON-compatible API responses."""
 
     def get(self, key: str) -> RawPayload | None:
         """Return a cached JSON payload or None when it is missing/expired."""
@@ -24,6 +24,27 @@ class JSONCache(Protocol):
         """Store a JSON payload with an optional TTL."""
 
     def clear(self) -> None:
+        """Remove all cached values."""
+
+
+class AsyncJSONCache(Protocol):
+    """Asynchronous cache backend interface for JSON-compatible API responses.
+
+    Use this protocol when writing a custom async cache backend.
+    :class:`AsyncRedisCache` is the built-in implementation.
+    :class:`~tonflow.client.TonClient` accepts both :class:`JSONCache` and
+    :class:`AsyncJSONCache` — pass either as the ``cache`` argument.
+    """
+
+    async def get(self, key: str) -> RawPayload | None:
+        """Return a cached JSON payload or None when it is missing/expired."""
+
+    async def set(  # noqa: A003
+        self, key: str, value: RawPayload, ttl_seconds: float | None = None
+    ) -> None:
+        """Store a JSON payload with an optional TTL."""
+
+    async def clear(self) -> None:
         """Remove all cached values."""
 
 
@@ -173,18 +194,20 @@ class AsyncRedisCache:
 
 
 class RedisCache:
-    """Redis-backed TTL cache for production services.
+    """Synchronous Redis-backed TTL cache for production services.
 
     Requires the ``redis`` extra::
 
         pip install tonflow[redis]
 
-    Pass any ``redis.Redis`` (or compatible) client — sync or async wrappers
-    are not supported; use the standard synchronous client::
+    Pass a synchronous ``redis.Redis`` client::
 
         import redis
         client = redis.Redis(host="localhost", port=6379, db=0)
         cache = RedisCache(client, prefix="myapp:")
+
+    For async services prefer :class:`AsyncRedisCache` (``redis.asyncio``) to
+    avoid blocking the event loop on every cache call.
 
     The ``prefix`` isolates keys so multiple apps can share one Redis instance
     without collisions.

@@ -327,7 +327,6 @@ async def _request_json(
     retry_attempts: int = 1,
     retry_backoff: float = 0.5,
 ) -> RawPayload:
-    last_error: TonflowAPIError | None = None
     for attempt in range(max(1, retry_attempts)):
         try:
             response = await client.request(method, path, params=params)
@@ -340,17 +339,13 @@ async def _request_json(
                 url=str(exc.request.url),
             )
             if status in _RETRYABLE_STATUSES and attempt < retry_attempts - 1:
-                last_error = err
                 delay = retry_backoff * (2**attempt) + random.uniform(0, 0.1)
                 await asyncio.sleep(delay)
                 continue
             raise err from exc
         except httpx.HTTPError as exc:
             raise TonflowAPIError(f"TON API request failed: {exc}") from exc
-        else:
-            break
-    else:
-        raise last_error  # type: ignore[misc]
+        break  # success
 
     try:
         data = response.json()

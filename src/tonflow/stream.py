@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 
 from tonflow.addresses import normalize_address
@@ -127,7 +128,29 @@ async def watch_addresses(
     tasks = [asyncio.create_task(_drain(addr)) for addr in addresses]
     try:
         while True:
-            yield await queue.get()
+            # Interleave queue reads with task health checks so a failing
+            # drain task surfaces its exception instead of silently dying
+            # and leaving the consumer blocked on queue.get() forever.
+            get = asyncio.ensure_future(queue.get())
+            try:
+                while True:
+                    done, _ = await asyncio.wait(
+                        {get, *tasks},
+                        return_when=asyncio.FIRST_COMPLETED,
+                        timeout=1.0,
+                    )
+                    if get in done:
+                        yield get.result()
+                        break
+                    # Check if any drain task exited with an error.
+                    for task in tasks:
+                        if task.done() and not task.cancelled() and task.exception() is not None:
+                            raise task.exception()  # type: ignore[misc]
+            finally:
+                if not get.done():
+                    get.cancel()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await get
     finally:
         for task in tasks:
             task.cancel()
