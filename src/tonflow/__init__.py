@@ -40,6 +40,7 @@ from tonflow.jettons import (
     normalize_amount,
 )
 from tonflow.models import (
+    Balance,
     JettonBurn,
     JettonMint,
     JettonTransfer,
@@ -63,6 +64,7 @@ from tonflow.websocket import stream_transactions_ws
 
 __all__ = [
     "__version__",
+    "Balance",
     "InMemoryCache",
     "NftTransfer",
     "decode_nft_transfer",

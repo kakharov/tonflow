@@ -12,6 +12,7 @@ from tonflow.cache import JSONCache
 from tonflow.exceptions import TonflowDecodeError
 from tonflow.jettons import decode_jetton_transfer
 from tonflow.models import (
+    Balance,
     JettonTransfer,
     Message,
     MessageDirection,
@@ -105,16 +106,23 @@ class TonClient:
 
         return transactions
 
-    async def get_balance(self, address: str) -> int:
-        """Return the account balance in nanotons.
+    async def get_balance(self, address: str) -> Balance:
+        """Return the account balance as a :class:`~tonflow.models.Balance`.
+
+        ``Balance.nano`` contains the raw nanoton value (integer, no precision
+        loss). ``Balance.ton`` contains the human-readable TON amount as a
+        :class:`~decimal.Decimal`.
 
         Example::
 
-            balance = await client.get_balance("EQ...")
-            print(f"{balance / 1e9:.2f} TON")
+            b = await client.get_balance("EQ...")
+            print(f"{b.ton:.2f} TON  ({b.nano} nanotons)")
         """
+        from decimal import Decimal
+
         normalized = normalize_address(address)
-        return await self._provider.fetch_balance(normalized)
+        nano = await self._provider.fetch_balance(normalized)
+        return Balance(nano=nano, ton=Decimal(nano) / Decimal(10**9))
 
     async def get_jetton_transfers(
         self,

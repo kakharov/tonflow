@@ -97,6 +97,9 @@ async def test_client_get_balance():
     client._provider = MagicMock()
     client._provider.fetch_balance = AsyncMock(return_value=5_000_000_000)
 
+    from decimal import Decimal
+
     result = await client.get_balance("EQA123")
-    assert result == 5_000_000_000
+    assert result.nano == 5_000_000_000
+    assert result.ton == Decimal("5")
     client._provider.fetch_balance.assert_awaited_once()

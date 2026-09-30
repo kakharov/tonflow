@@ -102,7 +102,13 @@ async def test_cmd_balance_prints_ton(capsys):
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.get_balance = AsyncMock(return_value=5_000_000_000)
+        from decimal import Decimal
+
+        from tonflow.models import Balance
+
+        mock_client.get_balance = AsyncMock(
+            return_value=Balance(nano=5_000_000_000, ton=Decimal("5"))
+        )
         mock_make.return_value = mock_client
 
         await _cmd_balance(args)

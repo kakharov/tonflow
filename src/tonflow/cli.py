@@ -107,10 +107,9 @@ async def _cmd_scan(args: argparse.Namespace) -> None:
 async def _cmd_balance(args: argparse.Namespace) -> None:
     client = _make_client(args)
     async with client:
-        nanotons = await client.get_balance(args.address)
+        balance = await client.get_balance(args.address)
 
-    ton = nanotons / 1_000_000_000
-    print(f"Balance: {ton:.9f} TON  ({nanotons} nanotons)")
+    print(f"Balance: {balance.ton:.9f} TON  ({balance.nano} nanotons)")
 
 
 def main() -> None:
