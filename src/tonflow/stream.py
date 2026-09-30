@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 
-from tonflow.client import TonClient
+from tonflow.addresses import normalize_address
+from tonflow.client import TonClient, _parse_transaction
 from tonflow.models import Transaction
 
 
@@ -50,16 +51,24 @@ async def watch_address(
         :class:`Transaction` objects in ascending logical-time order.
     """
     last_lt: int | None = None
+    normalized = normalize_address(address)
+
+    async def _fetch(limit: int) -> list[Transaction]:
+        # Bypass the client cache so every poll sees the latest chain state.
+        raw_list = await client._provider.fetch_raw_transactions(
+            normalized, limit=limit, before_lt=None
+        )
+        return [_parse_transaction(item, account=normalized) for item in raw_list]
 
     # Seed: fetch recent transactions to set the baseline lt without yielding them.
-    seed = await client.get_transactions(address, limit=lookback)
+    seed = await _fetch(lookback)
     if seed:
         last_lt = max(tx.logical_time for tx in seed)
 
     while True:
         await asyncio.sleep(interval_seconds)
 
-        txs = await client.get_transactions(address, limit=lookback)
+        txs = await _fetch(lookback)
         if not txs:
             continue
 
@@ -67,7 +76,6 @@ async def watch_address(
         if not new_txs:
             continue
 
-        # Yield in ascending order (oldest first).
         new_txs.sort(key=lambda tx: tx.logical_time)
         for tx in new_txs:
             yield tx

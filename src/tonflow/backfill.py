@@ -16,7 +16,7 @@ async def backfill_transactions(
     page_size: int = 100,
     stop_before_lt: int | None = None,
 ) -> AsyncIterator[Transaction]:
-    """Yield every historical transaction for *address*, oldest last.
+    """Yield every historical transaction for *address*, newest first.
 
     Paginates backwards through the chain using ``before_lt`` until the
     provider returns an empty page (start of history) or a transaction's

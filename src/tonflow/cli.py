@@ -75,7 +75,8 @@ def _make_client(args: argparse.Namespace) -> TonClient:
     endpoint: str = args.endpoint
 
     if args.provider == "toncenter":
-        tc_endpoint = endpoint if "toncenter" in endpoint else "https://toncenter.com/api/v2"
+        default_tonapi = "https://tonapi.io"
+        tc_endpoint = "https://toncenter.com/api/v2" if endpoint == default_tonapi else endpoint
         provider = TonCenterProvider(endpoint=tc_endpoint, api_key=api_key)
         return TonClient(provider=provider)
 

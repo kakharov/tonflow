@@ -43,7 +43,7 @@ class TonAPIProvider:
 
     def __init__(
         self,
-        endpoint: str,
+        endpoint: str = "https://tonapi.io",
         api_key: str | None = None,
         timeout: float = 10.0,
         http_client: httpx.AsyncClient | None = None,
