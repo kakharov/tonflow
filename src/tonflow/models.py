@@ -93,6 +93,31 @@ class Balance(TonflowModel):
     ton: Decimal = Field(ge=0)
 
 
+class NftAttribute(TonflowModel):
+    """A single trait/attribute entry from an NFT's metadata."""
+
+    trait_type: str
+    value: str
+
+
+class NftMetadata(TonflowModel):
+    """Metadata for a TON NFT item.
+
+    Fields map to the TonAPI ``GET /v2/nfts/{address}`` response.
+    Optional fields are ``None`` when the NFT or its collection has not set them.
+    """
+
+    address: str
+    name: str | None = None
+    description: str | None = None
+    image: str | None = None
+    attributes: list[NftAttribute] = Field(default_factory=list)
+    collection_address: str | None = None
+    collection_name: str | None = None
+    owner: str | None = None
+    dns: str | None = None
+
+
 class NftTransfer(TonflowModel):
     """Normalized NFT transfer event (TEP-62 op 0x5fcc3d14).
 
