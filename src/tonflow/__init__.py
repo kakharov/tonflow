@@ -24,6 +24,19 @@ from tonflow.cache import (
 )
 from tonflow.client import TonClient
 from tonflow.confirm import send_and_confirm
+from tonflow.dex import (
+    OP_DEDUST_SWAP_JETTON,
+    OP_DEDUST_SWAP_NATIVE,
+    OP_DEDUST_SWAP_POOL,
+    OP_STONFI_PAY_TO,
+    OP_STONFI_SWAP,
+    decode_dedust_swap,
+    decode_stonfi_swap,
+    extract_dex_swaps,
+    is_dedust_swap,
+    is_dex_swap,
+    is_stonfi_swap,
+)
 from tonflow.exceptions import TonflowExpiredError, TonflowTimeoutError
 from tonflow.export import (
     jetton_transfers_to_csv,
@@ -48,6 +61,8 @@ from tonflow.jettons import (
 )
 from tonflow.models import (
     Balance,
+    DexName,
+    DexSwap,
     JettonBurn,
     JettonMint,
     JettonTransfer,
@@ -76,9 +91,22 @@ __all__ = [
     "AsyncJSONCache",
     "AsyncRedisCache",
     "Balance",
+    "DexName",
+    "DexSwap",
     "NftAttribute",
     "NftMetadata",
     "FailoverProvider",
+    "OP_STONFI_SWAP",
+    "OP_STONFI_PAY_TO",
+    "OP_DEDUST_SWAP_NATIVE",
+    "OP_DEDUST_SWAP_JETTON",
+    "OP_DEDUST_SWAP_POOL",
+    "decode_stonfi_swap",
+    "decode_dedust_swap",
+    "extract_dex_swaps",
+    "is_stonfi_swap",
+    "is_dedust_swap",
+    "is_dex_swap",
     "InMemoryCache",
     "NftTransfer",
     "decode_nft_transfer",

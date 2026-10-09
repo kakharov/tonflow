@@ -204,6 +204,35 @@ b = await client.get_balance("EQ...")
 print(f"{b.ton:.9f} TON  ({b.nano} nanotons)")
 ```
 
+### Decode DEX swap events
+
+```python
+from tonflow import extract_dex_swaps, TonClient
+
+async with TonClient(api_key="...") as client:
+    txs = await client.get_transactions("EQ...")
+    for tx in txs:
+        for swap in extract_dex_swaps(tx):
+            print(swap.dex, swap.amount_in, swap.amount_out)
+            # stonfi  1000000000  500000000
+```
+
+Filter by DEX or check individual messages:
+
+```python
+from tonflow import is_stonfi_swap, is_dedust_swap, decode_stonfi_swap
+
+for tx in txs:
+    messages = []
+    if tx.in_message:
+        messages.append(tx.in_message)
+    messages.extend(tx.out_messages)
+
+    for msg in messages:
+        if is_stonfi_swap(msg):
+            swap = decode_stonfi_swap(tx, msg)
+```
+
 ### Resolve a TON DNS domain
 
 ```python
@@ -405,8 +434,21 @@ exponential backoff (1 s → 2 s → 4 s … up to 60 s).
 | `JettonBurn` | `transaction_hash`, `sender`, `amount`, `raw_amount`, `decimals`, `symbol`, `jetton_wallet`, `jetton_minter` |
 | `JettonMint` | `transaction_hash`, `recipient`, `amount`, `raw_amount`, `decimals`, `symbol`, `jetton_wallet`, `jetton_minter` |
 | `NftTransfer` | `transaction_hash`, `sender`, `recipient`, `nft_address`, `nft_collection`, `comment` |
+| `DexSwap` | `transaction_hash`, `dex`, `sender`, `receiver`, `amount_in`, `amount_out`, `jetton_master_in`, `jetton_master_out`, `router` |
+| `DexName` | `"stonfi"` \| `"dedust"` |
 | `NftMetadata` | `address`, `name`, `description`, `image`, `attributes`, `collection_address`, `collection_name`, `owner`, `dns` |
 | `NftAttribute` | `trait_type`, `value` |
+
+### DEX helpers
+
+| Function | Description |
+|---|---|
+| `extract_dex_swaps(tx)` | Return all `DexSwap` events from a transaction (both Ston.fi and DeDust) |
+| `decode_stonfi_swap(tx, msg)` | Decode a single Ston.fi swap or pay_to message |
+| `decode_dedust_swap(tx, msg)` | Decode a single DeDust swap message |
+| `is_stonfi_swap(msg)` | True if op code is `0x25938561` or `0xf93bb43f` |
+| `is_dedust_swap(msg)` | True if op code is `0xea06185d`, `0xe3a0d482`, or `0x9c610de3` |
+| `is_dex_swap(msg)` | True if op code belongs to any supported DEX |
 
 ### NFT helpers
 

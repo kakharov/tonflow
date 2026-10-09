@@ -3,7 +3,7 @@
 ---
 
 <details>
-<summary><strong>0.5.0</strong> — TON DNS, NFT metadata, DEX events, Webhook sink, LiteServer provider <em>(planned)</em></summary>
+<summary><strong>0.5.0</strong> — TON DNS, NFT metadata, DEX events</summary>
 
 ### Added
 
@@ -11,14 +11,30 @@
 
 **NFT metadata** — `TonClient.get_nft_metadata(address)` fetches full NFT metadata via `GET /v2/nfts/{address}` and returns a typed `NftMetadata` model with `name`, `description`, `image`, `attributes`, `collection_address`, `collection_name`, `owner`, and `dns` fields.
 
+**DEX swap event decoding** — decode Ston.fi and DeDust swap events directly from raw transaction messages without any extra API calls.
+
+```python
+from tonflow import extract_dex_swaps, TonClient
+
+async with TonClient(api_key="...") as client:
+    txs = await client.get_transactions("EQ...")
+    for tx in txs:
+        for swap in extract_dex_swaps(tx):
+            print(swap.dex, swap.amount_in, swap.amount_out)
+```
+
+New symbols: `extract_dex_swaps`, `decode_stonfi_swap`, `decode_dedust_swap`,
+`is_stonfi_swap`, `is_dedust_swap`, `is_dex_swap`, `DexSwap`, `DexName`,
+`OP_STONFI_SWAP`, `OP_STONFI_PAY_TO`, `OP_DEDUST_SWAP_NATIVE`,
+`OP_DEDUST_SWAP_JETTON`, `OP_DEDUST_SWAP_POOL`.
+
 </details>
 
 ---
 
 <details>
-<summary><strong>0.5.0 (future)</strong> — DEX events, Webhook sink, LiteServer provider <em>(planned)</em></summary>
+<summary><strong>0.6.0</strong> — Webhook sink, LiteServer provider <em>(planned)</em></summary>
 
-- DEX event decoding — Ston.fi swaps and DeDust liquidity events
 - Staking / nominator pool event decoding
 - Webhook sink: push new transactions to an HTTP endpoint
 - LiteServer provider — direct node connection, no API key required
