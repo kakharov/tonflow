@@ -59,9 +59,7 @@ async def test_get_nft_metadata_returns_model(mock_provider: MagicMock) -> None:
     assert nft.collection_address == (
         "0:b774000000000000000000000000000000000000000000000000000000000001"
     )
-    assert nft.owner == (
-        "0:9da971000000000000000000000000000000000000000000000000000000001"
-    )
+    assert nft.owner == ("0:9da971000000000000000000000000000000000000000000000000000000001")
 
 
 @pytest.mark.asyncio
@@ -79,9 +77,7 @@ async def test_get_nft_metadata_attributes(mock_provider: MagicMock) -> None:
 @pytest.mark.asyncio
 async def test_get_nft_metadata_minimal() -> None:
     provider = MagicMock()
-    provider.fetch_nft_metadata = AsyncMock(
-        return_value={"address": "0:aabbcc", "metadata": {}}
-    )
+    provider.fetch_nft_metadata = AsyncMock(return_value={"address": "0:aabbcc", "metadata": {}})
     provider.aclose = AsyncMock()
     client = TonClient(provider=provider)
     nft = await client.get_nft_metadata("0:aabbcc")

@@ -339,8 +339,7 @@ def _first_value(raw: RawPayload, key: str, fallback_keys: tuple[str, ...]) -> o
 
 
 # ---------------------------------------------------------------------------
-# Cache helpers — transparently handle sync (RedisCache, SQLiteCache) and
-# async (AsyncRedisCache) backends.
+# NFT / DNS parsing helpers
 # ---------------------------------------------------------------------------
 
 
@@ -403,6 +402,12 @@ def _parse_dns_owner(payload: RawPayload) -> str:
     if address is None:
         raise TonflowDecodeError("TON DNS response missing 'item.owner.address'.")
     return address
+
+
+# ---------------------------------------------------------------------------
+# Cache helpers — transparently handle sync (RedisCache, SQLiteCache) and
+# async (AsyncRedisCache) backends.
+# ---------------------------------------------------------------------------
 
 
 async def _cache_get(cache: Any, key: str) -> object:
