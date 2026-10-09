@@ -3,7 +3,20 @@
 ---
 
 <details>
-<summary><strong>0.5.0</strong> — DEX events, Webhook sink, LiteServer provider <em>(planned)</em></summary>
+<summary><strong>0.5.0</strong> — TON DNS, NFT metadata, DEX events, Webhook sink, LiteServer provider <em>(planned)</em></summary>
+
+### Added
+
+**TON DNS resolution** — `TonClient.resolve_domain(domain)` resolves a `.ton` domain to its owner wallet address via `GET /v2/dns/{domain}`.
+
+**NFT metadata** — `TonClient.get_nft_metadata(address)` fetches full NFT metadata via `GET /v2/nfts/{address}` and returns a typed `NftMetadata` model with `name`, `description`, `image`, `attributes`, `collection_address`, `collection_name`, `owner`, and `dns` fields.
+
+</details>
+
+---
+
+<details>
+<summary><strong>0.5.0 (future)</strong> — DEX events, Webhook sink, LiteServer provider <em>(planned)</em></summary>
 
 - DEX event decoding — Ston.fi swaps and DeDust liquidity events
 - Staking / nominator pool event decoding

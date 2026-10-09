@@ -17,6 +17,8 @@ from tonflow.models import (
     JettonTransfer,
     Message,
     MessageDirection,
+    NftAttribute,
+    NftMetadata,
     RawPayload,
     Transaction,
     TransactionStatus,
@@ -124,6 +126,35 @@ class TonClient:
         normalized = normalize_address(address)
         nano = await self._provider.fetch_balance(normalized)
         return Balance(nano=nano, ton=Decimal(nano) / Decimal(10**9))
+
+    async def get_nft_metadata(self, address: str) -> NftMetadata:
+        """Return metadata for the NFT at *address*.
+
+        Fetches ``GET /v2/nfts/{address}`` from TonAPI and returns a typed
+        :class:`~tonflow.models.NftMetadata` model.
+
+        Example::
+
+            nft = await client.get_nft_metadata("0:78dfe5...")
+            print(nft.name, nft.collection_name)
+        """
+        normalized = normalize_address(address)
+        payload = await self._provider.fetch_nft_metadata(normalized)
+        return _parse_nft_metadata(payload)
+
+    async def resolve_domain(self, domain: str) -> str:
+        """Resolve a TON DNS domain to its owner wallet address.
+
+        Fetches ``GET /v2/dns/{domain}`` from TonAPI and returns the raw address
+        string of the wallet that owns the domain.
+
+        Example::
+
+            addr = await client.resolve_domain("foundation.ton")
+            print(addr)  # 0:9da971...
+        """
+        payload = await self._provider.fetch_dns_resolve(domain)
+        return _parse_dns_owner(payload)
 
     async def get_jetton_transfers(
         self,
@@ -305,6 +336,72 @@ def _first_value(raw: RawPayload, key: str, fallback_keys: tuple[str, ...]) -> o
         if fallback_key in raw:
             return raw[fallback_key]
     return None
+
+
+# ---------------------------------------------------------------------------
+# NFT / DNS parsing helpers
+# ---------------------------------------------------------------------------
+
+
+def _parse_nft_metadata(payload: RawPayload) -> NftMetadata:
+    address = _required_str(payload, "address")
+
+    metadata = payload.get("metadata")
+    name: str | None = None
+    description: str | None = None
+    image: str | None = None
+    attributes: list[NftAttribute] = []
+    if isinstance(metadata, dict):
+        name = _optional_str(metadata, "name")
+        description = _optional_str(metadata, "description")
+        image = _optional_str(metadata, "image")
+        raw_attrs = metadata.get("attributes")
+        if isinstance(raw_attrs, list):
+            for item in raw_attrs:
+                if isinstance(item, dict):
+                    trait = item.get("trait_type")
+                    val = item.get("value")
+                    if isinstance(trait, str) and val is not None:
+                        attributes.append(NftAttribute(trait_type=trait, value=str(val)))
+
+    collection_address: str | None = None
+    collection_name: str | None = None
+    collection = payload.get("collection")
+    if isinstance(collection, dict):
+        collection_address = _optional_str(collection, "address")
+        collection_name = _optional_str(collection, "name")
+
+    owner: str | None = None
+    owner_obj = payload.get("owner")
+    if isinstance(owner_obj, dict):
+        owner = _optional_str(owner_obj, "address")
+
+    dns = _optional_str(payload, "dns")
+
+    return NftMetadata(
+        address=address,
+        name=name,
+        description=description,
+        image=image,
+        attributes=attributes,
+        collection_address=collection_address,
+        collection_name=collection_name,
+        owner=owner,
+        dns=dns,
+    )
+
+
+def _parse_dns_owner(payload: RawPayload) -> str:
+    item = payload.get("item")
+    if not isinstance(item, dict):
+        raise TonflowDecodeError("TON DNS response missing 'item' object.")
+    owner = item.get("owner")
+    if not isinstance(owner, dict):
+        raise TonflowDecodeError("TON DNS response missing 'item.owner' object.")
+    address = _optional_str(owner, "address")
+    if address is None:
+        raise TonflowDecodeError("TON DNS response missing 'item.owner.address'.")
+    return address
 
 
 # ---------------------------------------------------------------------------

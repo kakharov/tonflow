@@ -204,6 +204,24 @@ b = await client.get_balance("EQ...")
 print(f"{b.ton:.9f} TON  ({b.nano} nanotons)")
 ```
 
+### Resolve a TON DNS domain
+
+```python
+addr = await client.resolve_domain("foundation.ton")
+print(addr)  # 0:9da971...
+```
+
+### Fetch NFT metadata
+
+```python
+nft = await client.get_nft_metadata("0:78dfe5...")
+print(nft.name, nft.collection_name)
+# foundation.ton  TON DNS Domains
+
+for attr in nft.attributes:
+    print(attr.trait_type, attr.value)
+```
+
 ### Backfill all historical transactions
 
 ```python
@@ -273,6 +291,8 @@ TonClient(
 | `get_transactions(address, limit, before_lt)` | Fetch and normalize account transactions |
 | `get_jetton_transfers(address, limit, before_lt, decimals, jetton_minter, symbol)` | Fetch transactions and return only Jetton transfer events |
 | `get_balance(address)` | Return `Balance(nano, ton)` for the account |
+| `get_nft_metadata(address)` | Return `NftMetadata` for an NFT item (TonAPI only) |
+| `resolve_domain(domain)` | Resolve a `.ton` DNS domain to its owner wallet address (TonAPI only) |
 | `aclose()` | Close the underlying HTTP client |
 
 Use as an async context manager (`async with`) for automatic cleanup.
@@ -385,6 +405,8 @@ exponential backoff (1 s → 2 s → 4 s … up to 60 s).
 | `JettonBurn` | `transaction_hash`, `sender`, `amount`, `raw_amount`, `decimals`, `symbol`, `jetton_wallet`, `jetton_minter` |
 | `JettonMint` | `transaction_hash`, `recipient`, `amount`, `raw_amount`, `decimals`, `symbol`, `jetton_wallet`, `jetton_minter` |
 | `NftTransfer` | `transaction_hash`, `sender`, `recipient`, `nft_address`, `nft_collection`, `comment` |
+| `NftMetadata` | `address`, `name`, `description`, `image`, `attributes`, `collection_address`, `collection_name`, `owner`, `dns` |
+| `NftAttribute` | `trait_type`, `value` |
 
 ### NFT helpers
 

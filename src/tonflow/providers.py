@@ -34,6 +34,10 @@ class Provider(Protocol):
 
     async def fetch_balance(self, address: str) -> int: ...
 
+    async def fetch_nft_metadata(self, address: str) -> RawPayload: ...
+
+    async def fetch_dns_resolve(self, domain: str) -> RawPayload: ...
+
     async def send_boc(self, boc: str) -> None: ...
 
     async def aclose(self) -> None: ...
@@ -105,6 +109,24 @@ class TonAPIProvider:
             retry_backoff=self._retry_backoff,
         )
         return _extract_balance(payload, key="balance")
+
+    async def fetch_nft_metadata(self, address: str) -> RawPayload:
+        return await _request_json(
+            self._client(),
+            "GET",
+            f"/v2/nfts/{address}",
+            retry_attempts=self._retry_attempts,
+            retry_backoff=self._retry_backoff,
+        )
+
+    async def fetch_dns_resolve(self, domain: str) -> RawPayload:
+        return await _request_json(
+            self._client(),
+            "GET",
+            f"/v2/dns/{domain}",
+            retry_attempts=self._retry_attempts,
+            retry_backoff=self._retry_backoff,
+        )
 
     async def send_boc(self, boc: str) -> None:
         await _request_json(
@@ -198,6 +220,12 @@ class TonCenterProvider:
         )
         return _extract_balance(payload, key="result")
 
+    async def fetch_nft_metadata(self, address: str) -> RawPayload:
+        raise TonflowAPIError("TonCenter does not support NFT metadata queries.")
+
+    async def fetch_dns_resolve(self, domain: str) -> RawPayload:
+        raise TonflowAPIError("TonCenter does not support TON DNS resolution.")
+
     async def send_boc(self, boc: str) -> None:
         params: dict[str, Any] = {"boc": boc}
         if self._api_key:
@@ -261,6 +289,18 @@ class FailoverProvider:
             return await self._primary.fetch_balance(address)
         except TonflowAPIError:
             return await self._fallback.fetch_balance(address)
+
+    async def fetch_nft_metadata(self, address: str) -> RawPayload:
+        try:
+            return await self._primary.fetch_nft_metadata(address)
+        except TonflowAPIError:
+            return await self._fallback.fetch_nft_metadata(address)
+
+    async def fetch_dns_resolve(self, domain: str) -> RawPayload:
+        try:
+            return await self._primary.fetch_dns_resolve(domain)
+        except TonflowAPIError:
+            return await self._fallback.fetch_dns_resolve(domain)
 
     async def send_boc(self, boc: str) -> None:
         try:
