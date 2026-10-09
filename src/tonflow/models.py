@@ -93,6 +93,33 @@ class Balance(TonflowModel):
     ton: Decimal = Field(ge=0)
 
 
+class DexName(StrEnum):
+    """Identifier for a supported DEX protocol."""
+
+    STONFI = "stonfi"
+    DEDUST = "dedust"
+
+
+class DexSwap(TonflowModel):
+    """A decoded DEX swap event from either Ston.fi or DeDust.
+
+    ``amount_in`` and ``amount_out`` are raw on-chain values (nanotons for TON,
+    nano-jettons for Jetton assets). ``jetton_master_in`` / ``jetton_master_out``
+    are ``None`` when the corresponding asset is native TON.
+    """
+
+    transaction_hash: str
+    dex: DexName
+    sender: str | None = None
+    receiver: str | None = None
+    amount_in: int = 0
+    amount_out: int = 0
+    jetton_master_in: str | None = None
+    jetton_master_out: str | None = None
+    router: str | None = None
+    raw: RawPayload
+
+
 class NftAttribute(TonflowModel):
     """A single trait/attribute entry from an NFT's metadata."""
 
